@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "xfyun-ai": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@fruitbars/xfyun-ai-mcp@0.3.0"
+      ],
+      "runtime": {
+        "type": "node",
+        "version": "20"
+      },
+      "env": {
+        "XFYUN_APP_ID": "${XFYUN_APP_ID}",
+        "XFYUN_API_KEY": "${XFYUN_API_KEY}",
+        "XFYUN_API_SECRET": "${XFYUN_API_SECRET}"
+      },
+      "timeout": 1800000
+    }
+  }
+}

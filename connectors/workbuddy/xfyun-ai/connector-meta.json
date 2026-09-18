@@ -1,0 +1,23 @@
+{
+  "name": "XFYun AI",
+  "name_zh": "讯飞云 AI",
+  "name_en": "XFYun AI",
+  "description": "Use XFYun AI APIs for OCR, speech synthesis, and audio transcription.",
+  "description_zh": "通过自然语言调用讯飞云 AI 完成文档 OCR、语音合成、实时转写和录音文件转写。",
+  "description_en": "Use XFYun AI APIs for document OCR, speech synthesis, and audio transcription.",
+  "source": "xfyun-ai",
+  "type": "mcp",
+  "version": "0.3.0",
+  "auth_mode": "token",
+  "minWorkbuddyVersion": "5.0.0",
+  "examples_zh": [
+    "识别这张扫描件并整理成 Markdown",
+    "把这段文字合成为 MP3 文件",
+    "转写这个会议录音并提取完整文本"
+  ],
+  "examples_en": [
+    "Recognize this scanned document and return Markdown",
+    "Synthesize this text to an MP3 file",
+    "Transcribe this meeting recording"
+  ]
+}

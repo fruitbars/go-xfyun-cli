@@ -1,0 +1,56 @@
+name: Publish npm
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+jobs:
+  verify:
+    if: github.ref_type == 'tag'
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: go test ./...
+      - run: go vet ./...
+      - run: node --test npm/xfyun-ai-mcp/test/launcher.test.js npm/xfyun-ai-mcp/test/native-pack.test.js
+      - run: node scripts/build-release.mjs --host
+      - run: node scripts/test-package.mjs
+  publish:
+    needs: verify
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: node --test npm/xfyun-ai-mcp/test/*.test.js
+      - run: node scripts/build-release.mjs
+      - run: node scripts/test-package.mjs
+      - name: Publish native packages before launcher
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          for target in darwin-arm64 darwin-x64 linux-arm64 linux-x64 win32-arm64 win32-x64; do
+            (cd "npm/platforms/$target" && npm publish --access public)
+          done
+          (cd npm/xfyun-ai-mcp && npm publish --access public)

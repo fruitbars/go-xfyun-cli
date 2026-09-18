@@ -1,0 +1,14 @@
+# TTS 参数
+
+`xfyun_tts` 必须设置 `output_path`，并且在 `text` 与 `text_path` 中二选一。单会话 UTF-8 文本不超过 64 KiB；意外出现的制表符、emoji、不可见字符、HTML/Markdown 控制符宜先清理。
+
+- MP3：`encoding="lame"`（默认）；PCM：`raw`。还支持 `speex/opus/opus-wb/opus-swb/speex-wb`。
+- 采样率为 8000/16000/24000，推荐且默认 24000；输出固定单声道、16 bit。
+- `speed/volume/pitch` 都是 0–100，默认 50。
+- 口语程度：`oral_level="low"|"mid"|"high"`；`spark_assist=1` 开启大模型口语化。官方说明口语控制适用于 x4 发音人，若当前发音人拒绝参数，应改用已开通的兼容发音人。
+- 保留书面形式：`remain=1`；禁止服务端自动断句：`stop_split=1`；背景音：`background_sound=1`。
+- 英文朗读：`english_reading=0|1|2`；数字朗读：`number_reading=0|1|2|3`。
+- 返回音素/时序：`return_pronounce=1`，读取结果的 `pronunciation`。
+- 可听水印：`visible_watermark=1`（句首）或 `2`（句尾）；隐式水印 `implicit_watermark=true` 仅支持 lame/MP3。
+
+仅在用户明确授权覆盖目标文件时设置 `force=true`。

@@ -1,0 +1,12 @@
+/dist/
+/xfyun
+/xfyun.exe
+/xfyun-ai-mcp
+/xfyun-ai-mcp.exe
+/npm/platforms/*/bin/
+node_modules/
+*.tgz
+.env
+.env.*
+!.env.example
+.DS_Store

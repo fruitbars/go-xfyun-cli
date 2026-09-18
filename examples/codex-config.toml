@@ -1,0 +1,7 @@
+[mcp_servers.xfyun-ai]
+command = "npx"
+args = ["-y", "@fruitbars/xfyun-ai-mcp@0.3.0"]
+env_vars = ["XFYUN_APP_ID", "XFYUN_API_KEY", "XFYUN_API_SECRET"]
+startup_timeout_sec = 10
+tool_timeout_sec = 30000
+default_tools_approval_mode = "writes"

@@ -1,0 +1,30 @@
+{
+  "name": "@fruitbars/xfyun-ai-mcp",
+  "version": "0.3.0",
+  "description": "Cross-platform stdio MCP launcher for XFYun AI capabilities",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fruitbars/go-xfyun-cli.git"
+  },
+  "bin": {
+    "xfyun-ai-mcp": "bin/xfyun-ai-mcp.js"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "optionalDependencies": {
+    "@fruitbars/xfyun-ai-mcp-darwin-arm64": "0.3.0",
+    "@fruitbars/xfyun-ai-mcp-darwin-x64": "0.3.0",
+    "@fruitbars/xfyun-ai-mcp-linux-arm64": "0.3.0",
+    "@fruitbars/xfyun-ai-mcp-linux-x64": "0.3.0",
+    "@fruitbars/xfyun-ai-mcp-win32-arm64": "0.3.0",
+    "@fruitbars/xfyun-ai-mcp-win32-x64": "0.3.0"
+  }
+}

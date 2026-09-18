@@ -1,0 +1,38 @@
+{
+  "title": "讯飞开放平台鉴权",
+  "title_en": "XFYun API Credentials",
+  "description": "填写讯飞控制台应用的 APPID、APIKey 和 APISecret。凭证只保存在本机 ~/.workbuddy 目录并注入本地 MCP 进程。",
+  "description_en": "Enter the APPID, APIKey, and APISecret for your XFYun application. Credentials are stored locally by WorkBuddy and injected into the local MCP process.",
+  "docUrl": "https://console.xfyun.cn/",
+  "docLabel": "前往讯飞开放平台控制台",
+  "docLabel_en": "Open the XFYun console",
+  "fields": [
+    {
+      "key": "XFYUN_APP_ID",
+      "label": "APPID",
+      "label_en": "APPID",
+      "type": "password",
+      "required": true,
+      "placeholder": "讯飞控制台中的 APPID",
+      "description": "与 APIKey、APISecret 属于同一个已开通相关能力的应用。"
+    },
+    {
+      "key": "XFYUN_API_KEY",
+      "label": "APIKey",
+      "label_en": "APIKey",
+      "type": "password",
+      "required": true,
+      "placeholder": "讯飞控制台中的 APIKey",
+      "description": "请勿填写其他应用或其他服务的 APIKey。"
+    },
+    {
+      "key": "XFYUN_API_SECRET",
+      "label": "APISecret",
+      "label_en": "APISecret",
+      "type": "password",
+      "required": true,
+      "placeholder": "讯飞控制台中的 APISecret",
+      "description": "该字段按密码处理，不会显示明文。"
+    }
+  ]
+}

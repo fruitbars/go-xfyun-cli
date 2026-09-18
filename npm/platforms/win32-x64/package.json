@@ -1,0 +1,13 @@
+{
+  "name": "@fruitbars/xfyun-ai-mcp-win32-x64",
+  "version": "0.3.0",
+  "description": "XFYun AI MCP native binary for Windows x64",
+  "repository": "https://github.com/fruitbars/go-xfyun-cli",
+  "os": ["win32"],
+  "cpu": ["x64"],
+  "files": ["bin"],
+  "preferUnplugged": true,
+  "scripts": {
+    "prepack": "node -e \"const fs=require('node:fs'), p='bin/xfyun-ai-mcp.exe'; if(!fs.statSync(p).isFile()||fs.statSync(p).size===0) throw Error('Missing native binary')\""
+  }
+}

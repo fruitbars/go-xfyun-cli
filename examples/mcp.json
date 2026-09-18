@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "xfyun-ai": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.3.0"]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+interface:
+  display_name: "讯飞云 AI"
+  short_description: "调用讯飞 OCR、语音合成与语音转写工具处理图片、文本和音频"
+  default_prompt: "Use $xfyun-ai to process this image, text, or audio with XFYun."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "xfyun-ai"
+      description: "XFYun OCR, speech synthesis, and transcription tools"
+      transport: "stdio"
+policy:
+  allow_implicit_invocation: true

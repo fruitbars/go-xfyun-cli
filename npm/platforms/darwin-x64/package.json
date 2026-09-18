@@ -1,0 +1,13 @@
+{
+  "name": "@fruitbars/xfyun-ai-mcp-darwin-x64",
+  "version": "0.3.0",
+  "description": "XFYun AI MCP native binary for macOS x64",
+  "repository": "https://github.com/fruitbars/go-xfyun-cli",
+  "os": ["darwin"],
+  "cpu": ["x64"],
+  "files": ["bin"],
+  "preferUnplugged": true,
+  "scripts": {
+    "prepack": "node -e \"const fs=require('node:fs'), p='bin/xfyun-ai-mcp'; if(!fs.statSync(p).isFile()||fs.statSync(p).size===0) throw Error('Missing native binary'); fs.accessSync(p, fs.constants.X_OK)\""
+  }
+}
