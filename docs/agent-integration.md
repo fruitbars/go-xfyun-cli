@@ -6,11 +6,13 @@
 
 ## 共同前提
 
-推荐所有支持本地 stdio MCP 的产品使用固定版本：
+可先验证最新公开版本是否能在当前机器运行：
 
 ```bash
-npx -y @fruitbars/xfyun-ai-mcp@0.4.0 --version
+npx -y @fruitbars/xfyun-ai-mcp@latest --version
 ```
+
+这不是全局安装；`npx` 会下载并缓存包，`--version` 只做启动验收。下面的 CLI 快速注册使用 `@latest`；团队、生产环境和市场连接器推荐固定版本（当前为 `@0.4.0`），保证配置可复现。
 
 需要 Node.js 18 或更高版本（WorkBuddy 连接器声明 Node.js 20）。npm 主包按平台安装原生可选依赖，支持 Windows、macOS、Linux 的 x64/arm64，并提供 IFASR 自动切片所需的媒体引擎。开发中的版本尚未发布时，可先从源码构建 `xfyun-ai-mcp`，或设置 `XFYUN_AI_MCP_BINARY` 指向本地二进制测试启动器。
 
@@ -29,7 +31,7 @@ XFYUN_API_SECRET
 在已经配置三项环境变量的终端中，最快的注册方式是：
 
 ```bash
-codex mcp add xfyun-ai -- npx -y @fruitbars/xfyun-ai-mcp@0.4.0
+codex mcp add xfyun-ai -- npx -y @fruitbars/xfyun-ai-mcp@latest
 codex mcp list
 ```
 
@@ -68,7 +70,7 @@ default_tools_approval_mode = "writes"
 可用 CLI 注册用户级 MCP：
 
 ```bash
-claude mcp add --scope user --transport stdio xfyun-ai -- npx -y @fruitbars/xfyun-ai-mcp@0.4.0
+claude mcp add --scope user --transport stdio xfyun-ai -- npx -y @fruitbars/xfyun-ai-mcp@latest
 claude mcp list
 ```
 
