@@ -129,6 +129,8 @@ xfyun tts --text '测试 PCM' --encoding raw --output speech.pcm
 - `--return-pronounce 1`
 - `--visible-watermark 0..2`、`--implicit-watermark`（仅 MP3/lame）
 
+讯飞官方推荐 `lame`（MP3）和 `raw`（无文件头 PCM）。Opus/Speex 系列返回裸编码码流而非 Ogg 容器，当前不会自动封装；面向播放器交付时优先使用 MP3。完整参数、长文本行为、返回字段和排错见 [TTS 使用指南](docs/tts.md)。
+
 ### RTASR
 
 ```bash
@@ -191,7 +193,7 @@ IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先
 }
 ```
 
-Codex、Claude Code、WorkBuddy 及其他宿主的安装方法见 [Agent 产品接入指南](docs/agent-integration.md)。
+Codex、Claude Code、WorkBuddy 及其他宿主的安装方法见 [Agent 产品接入指南](docs/agent-integration.md)。OCR 的图片/PDF 输入、Markdown/SED、版面坐标、标注图片和限制见 [OCR 使用指南](docs/ocr.md)；语音格式、长文本拆分、发音参数与水印见 [TTS 使用指南](docs/tts.md)。
 
 ## WorkBuddy 连接器与 Skill
 

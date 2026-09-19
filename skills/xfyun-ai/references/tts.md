@@ -4,7 +4,7 @@ Use `xfyun_tts` with exactly one of `text` or `text_path`, and always set `outpu
 
 ## Map user intent to arguments
 
-- MP3: `encoding="lame"` (default). PCM: `encoding="raw"`.
+- MP3: `encoding="lame"` (default). PCM: `encoding="raw"`. These are the provider-recommended formats.
 - Higher speech quality: `sample_rate=24000` (recommended/default). Valid rates: 8000, 16000, 24000.
 - Faster/slower, louder/quieter, higher/lower pitch: map to `speed`, `volume`, `pitch`, each 0–100 with default 50.
 - More or less conversational: `oral_level="low"|"mid"|"high"`; `spark_assist=1` enables large-model oralization. Official documentation associates the oral controls with x4 voices, so if an enabled voice rejects them, choose a compatible voice rather than silently discarding the request.
@@ -15,4 +15,4 @@ Use `xfyun_tts` with exactly one of `text` or `text_path`, and always set `outpu
 - Return phoneme/timing annotation: `return_pronounce=1`; read `pronunciation` from the result.
 - Audible watermark: `visible_watermark=1` at sentence start or `2` at sentence end. Invisible watermark: `implicit_watermark=true`, supported only with `lame`/MP3.
 
-Other supported encodings are `speex`, `opus`, `opus-wb`, `opus-swb`, and `speex-wb`. Output is fixed to mono, 16-bit audio. The server writes through a temporary file and rejects an existing path unless the user explicitly authorizes `force=true`.
+Other accepted encodings are `speex`, `opus`, `opus-wb`, `opus-swb`, and `speex-wb`. XFYun returns these as raw codec streams, not Ogg containers, so do not claim the resulting `.opus` or `.spx` path is directly playable. Prefer MP3 for user-facing playback and PCM for further processing. Output is fixed to mono, 16-bit audio. The server writes through a temporary file and rejects an existing path unless the user explicitly authorizes `force=true`.

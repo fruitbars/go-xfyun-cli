@@ -116,7 +116,7 @@ func addOCRTool(server *mcp.Server, service *Service) {
 			input.ResultOption = "normal"
 		}
 		if input.MarkdownOptions == "" {
-			input.MarkdownOptions = "watermark=0,page_header=0,page_footer=0,page_number=0,graph=0"
+			input.MarkdownOptions = ocr.DefaultMarkdownElementOption
 		}
 		output := OCROutput{ResultFormat: input.ResultFormat}
 		var annotationTypes []string
@@ -346,7 +346,7 @@ type TTSInput struct {
 	OutputPath        string `json:"output_path" jsonschema:"Local destination path for generated audio."`
 	Force             bool   `json:"force,omitempty" jsonschema:"Allow replacement of an existing output file after synthesis succeeds."`
 	Voice             string `json:"voice,omitempty" jsonschema:"Enabled XFYun voice ID. Default: x5_lingxiaoxuan_flow."`
-	Encoding          string `json:"encoding,omitempty" jsonschema:"Audio encoding such as lame or raw. Default: lame."`
+	Encoding          string `json:"encoding,omitempty" jsonschema:"Audio encoding. lame writes playable MP3; raw writes headerless PCM; Opus/Speex variants are raw codec streams, not Ogg containers. Default: lame."`
 	SampleRate        int    `json:"sample_rate,omitempty" jsonschema:"8000, 16000, or 24000. Default: 24000."`
 	Speed             *int   `json:"speed,omitempty" jsonschema:"Speech speed from 0 to 100. Default: 50."`
 	Volume            *int   `json:"volume,omitempty" jsonschema:"Volume from 0 to 100. Default: 50."`

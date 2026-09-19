@@ -56,3 +56,22 @@ func TestSplitTextHandlesSingleRuneLimit(t *testing.T) {
 		t.Fatalf("parts = %#v", parts)
 	}
 }
+
+func TestSplitTextAcrossServiceLimitPreservesUTF8(t *testing.T) {
+	text := strings.Repeat("a", MaxTextBytes-4) + "。" + strings.Repeat("边界测试。", 2048)
+	parts := SplitText(text, MaxTextBytes)
+	if len(parts) < 2 {
+		t.Fatalf("parts = %d, want multiple service sessions", len(parts))
+	}
+	if strings.Join(parts, "") != text {
+		t.Fatal("service-limit split did not preserve input")
+	}
+	for index, part := range parts {
+		if len([]byte(part)) > MaxTextBytes {
+			t.Fatalf("part %d has %d bytes", index, len([]byte(part)))
+		}
+		if !utf8.ValidString(part) {
+			t.Fatalf("part %d is not valid UTF-8", index)
+		}
+	}
+}

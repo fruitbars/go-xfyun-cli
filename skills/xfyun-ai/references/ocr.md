@@ -18,7 +18,7 @@ For one image/page, `xfyun_ocr` returns `text` directly. For multiple selected p
 - “Honor camera orientation”: `exif_option="1"`.
 - “Honor transparency”: `alpha_option="1"` for images whose alpha channel affects visible content.
 
-`markdown_options` and `sed_options` are comma-separated `name=value` controls. Use only when the user asks to include or exclude layout elements. Documented elements include seals, QR codes, barcodes, tables, formulas, code blocks, watermarks, page headers, page footers, page numbers, and graphics. `table=2` requests wired-table handling. The default suppresses `watermark`, `page_header`, `page_footer`, `page_number`, and `graph`.
+`markdown_options` and `sed_options` are comma-separated `name=value` controls. Use only when the user asks to include or exclude layout elements. Documented elements include seals, QR codes, barcodes, tables, formulas, code blocks, watermarks, page headers, page footers, page numbers, and graphics. `table=2` requests wired-table handling. Markdown defaults to `table_format=0,formula_format=0`, producing HTML tables with MathML formulas so merged cells and complex structures are preserved; `table_format=1` requests Markdown tables and makes `formula_format` irrelevant. The default also suppresses `watermark`, `page_header`, `page_footer`, `page_number`, and `graph`.
 
 Valid `result_format` values are `json`, `json,markdown`, `json,sed`, and `json,markdown,sed`. `json_element_option` is reserved by the service and is intentionally not exposed. The API documents `streaming_layout`, but this client currently supports only one-shot output; do not claim streaming-layout support.
 

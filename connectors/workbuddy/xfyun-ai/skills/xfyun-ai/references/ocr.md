@@ -12,7 +12,7 @@ PDF 由内嵌 PDFium WebAssembly 渲染，无 CGO、无需系统安装渲染器�
 - 字符级坐标：`result_option="normal,char"`；不返回行坐标：`normal,no_line_position`；两者兼用：`normal,char,no_line_position`。
 - 自动旋转阈值：`rotation_min_angle` 为 0–180，默认 5。
 - 使用拍摄方向信息：`exif_option="1"`；透明通道影响内容时：`alpha_option="1"`。
-- `markdown_options`、`sed_options` 使用逗号分隔的 `name=value`，按需求控制印章、二维码、条码、表格、公式、代码、水印、页眉、页脚、页码、图片等元素；`table=2` 表示有线表格处理。
+- `markdown_options`、`sed_options` 使用逗号分隔的 `name=value`，按需求控制印章、二维码、条码、表格、公式、代码、水印、页眉、页脚、页码、图片等元素；`table=2` 表示有线表格处理。Markdown 默认使用 `table_format=0,formula_format=0`，输出 HTML 表格和 MathML 公式，以完整保留合并单元格及复杂结构；`table_format=1` 才输出 Markdown 表格，此时 `formula_format` 不生效。
 
 标注支持完整的版面元素清单：`page`、`layout`、`region`、`page_header`、`title`、`paragraph`、`textline`、`table`、`cell`、`graph`、`list`、`item`、`formula`、`code`、`pseudocode`、`information_bar`、`seal`、`fingerprint`、`barcode`、`qrcode`、`watermark`、`page_footer`、`page_number`、`annotation`、`footnote`、`key`、`value`、`contents`。默认只选择常见语义类型，`all` 选择全部。
 

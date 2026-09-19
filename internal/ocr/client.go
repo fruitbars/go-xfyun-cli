@@ -30,6 +30,12 @@ import (
 const Endpoint = "https://cbm01.cn-huabei-1.xf-yun.com/v1/private/se75ocrbm"
 
 const (
+	// DefaultMarkdownElementOption preserves complex tables with HTML and keeps
+	// formulas inside those tables as MathML. HTML retains merged-cell geometry
+	// more faithfully than pipe-table Markdown.
+	DefaultMarkdownElementOption = "table_format=0,formula_format=0,watermark=0,page_header=0,page_footer=0,page_number=0,graph=0"
+	DefaultSEDElementOption      = "watermark=0,page_header=0,page_footer=0,page_number=0,graph=0"
+
 	// MaxSourceImageBytes bounds local memory use before automatic compression.
 	MaxSourceImageBytes = 32 * 1024 * 1024
 	// MaxUploadImageBytes is the maximum compressed image payload sent to OCR.

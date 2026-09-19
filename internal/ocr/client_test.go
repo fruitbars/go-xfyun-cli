@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -31,6 +32,15 @@ func TestValidateOptions(t *testing.T) {
 	invalid.OutputType = "streaming_layout"
 	if err := validateOptions(invalid); err == nil {
 		t.Fatal("expected unsupported streaming output error")
+	}
+}
+
+func TestDefaultMarkdownElementOptionUsesHTMLTablesAndMathML(t *testing.T) {
+	if !strings.Contains(DefaultMarkdownElementOption, "table_format=0") {
+		t.Fatalf("default markdown options do not enable HTML tables: %q", DefaultMarkdownElementOption)
+	}
+	if !strings.Contains(DefaultMarkdownElementOption, "formula_format=0") {
+		t.Fatalf("default markdown options do not keep HTML-table formulas as MathML: %q", DefaultMarkdownElementOption)
 	}
 }
 

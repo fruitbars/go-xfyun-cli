@@ -149,6 +149,25 @@ func TestPrepareAtomicOutputRejectsExistingFile(t *testing.T) {
 	}
 }
 
+func TestResolveTextSupportsLiteralOrFileExclusively(t *testing.T) {
+	if value, err := resolveText("直接文本", ""); err != nil || value != "直接文本" {
+		t.Fatalf("literal text = %q, err = %v", value, err)
+	}
+	path := filepath.Join(t.TempDir(), "input.txt")
+	if err := os.WriteFile(path, []byte("文件文本"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if value, err := resolveText("", path); err != nil || value != "文件文本" {
+		t.Fatalf("file text = %q, err = %v", value, err)
+	}
+	if _, err := resolveText("", ""); err == nil {
+		t.Fatal("expected missing text source error")
+	}
+	if _, err := resolveText("直接文本", path); err == nil {
+		t.Fatal("expected mutually exclusive text source error")
+	}
+}
+
 func TestAggregateIFASRStatusUsesMostActionableState(t *testing.T) {
 	status := 4
 	for _, next := range []int{0, 4, 3, 4} {
