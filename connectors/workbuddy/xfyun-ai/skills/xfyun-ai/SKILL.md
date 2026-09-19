@@ -6,7 +6,7 @@ description: 使用讯飞云 AI 完成文档 OCR、语音合成、实时音频�
 description_zh: 使用讯飞云 AI 完成文档 OCR、语音合成、实时音频转写和录音文件转写。
 description_en: Use XFYun AI tools for document OCR, speech synthesis, and audio transcription.
 version: 0.3.0
-author: myinsights
+author: fruitbars
 ---
 
 # 讯飞云 AI

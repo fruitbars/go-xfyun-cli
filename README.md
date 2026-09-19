@@ -18,7 +18,7 @@
 npx -y @fruitbars/xfyun-ai-mcp@0.3.0 --version
 ```
 
-主 npm 包会自动选择 Windows、macOS、Linux 的 x64/arm64 原生包，不在运行时从 GitHub 下载二进制。注意：仓库已准备好 npm 包与发布工作流，但在这些包实际发布前，上述命令还不能从 npm 获取。
+主 npm 包会自动选择 Windows、macOS、Linux 的 x64/arm64 原生包，不在运行时从 GitHub 下载二进制。
 
 ### Go 安装或源码构建
 
