@@ -2,6 +2,8 @@
 
 `xfyun-ai-mcp` 是 Agent 产品的统一入口；`skills/xfyun-ai` 负责把自然语言需求映射到四个接口的详细参数；`xfyun` CLI 是不支持 MCP 时的保底入口。
 
+最终用户无需克隆仓库、安装 Go、下载平台二进制或另行安装 FFmpeg。npm 启动器会按系统和架构选择原生包；用户只需要在宿主环境配置同一个讯飞应用的 `XFYUN_APP_ID`、`XFYUN_API_KEY`、`XFYUN_API_SECRET`，再完成一次 MCP 注册。
+
 ## 共同前提
 
 推荐所有支持本地 stdio MCP 的产品使用固定版本：
@@ -23,6 +25,15 @@ XFYUN_API_SECRET
 不要把真实值提交到仓库、Skill、`.mcp.json` 或提示词。
 
 ## Codex
+
+在已经配置三项环境变量的终端中，最快的注册方式是：
+
+```bash
+codex mcp add xfyun-ai -- npx -y @fruitbars/xfyun-ai-mcp@0.4.0
+codex mcp list
+```
+
+如果使用 Codex 图形界面，或希望只转发指定变量，可将下面配置合并到 `~/.codex/config.toml`。`env_vars` 只转发变量名，不把密钥写进配置：
 
 把 [examples/codex-config.toml](../examples/codex-config.toml) 合并到用户级 `~/.codex/config.toml`，或可信项目的 `.codex/config.toml`：
 
@@ -52,12 +63,16 @@ default_tools_approval_mode = "writes"
 
 ## Claude Code
 
+在已经配置三项环境变量的终端中：
+
 可用 CLI 注册用户级 MCP：
 
 ```bash
 claude mcp add --scope user --transport stdio xfyun-ai -- npx -y @fruitbars/xfyun-ai-mcp@0.4.0
 claude mcp list
 ```
+
+注册完成后直接使用自然语言即可；Skill 为可选增强项，不影响 MCP 工具本身。
 
 团队项目也可把 [examples/claude-code.mcp.json](../examples/claude-code.mcp.json) 的 `mcpServers` 合并到仓库根目录 `.mcp.json`。启动后用 `/mcp` 检查，项目级 MCP 首次使用需在可信工作区批准。
 

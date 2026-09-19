@@ -20,6 +20,30 @@ npx -y @fruitbars/xfyun-ai-mcp@0.4.0 --version
 
 主 npm 包会自动选择 Windows、macOS、Linux 的 x64/arm64 原生包，不在运行时从 GitHub 下载二进制。
 
+用户不需要克隆仓库、安装 Go 或另行安装 FFmpeg。把 MCP 注册到 Agent 宿主后，只需配置同一个讯飞应用的 `APPID`、`APIKey`、`APISecret`，即可直接使用 OCR、TTS、RTASR 和 IFASR。
+
+macOS/Linux 终端示例：
+
+```bash
+export XFYUN_APP_ID="your-app-id"
+export XFYUN_API_KEY="your-api-key"
+export XFYUN_API_SECRET="your-api-secret"
+```
+
+Codex：
+
+```bash
+codex mcp add xfyun-ai -- npx -y @fruitbars/xfyun-ai-mcp@0.4.0
+```
+
+Claude Code：
+
+```bash
+claude mcp add --scope user --transport stdio xfyun-ai -- npx -y @fruitbars/xfyun-ai-mcp@0.4.0
+```
+
+注册后可直接提出自然语言请求，例如“把这个 PDF 做 OCR”或“把这段录音整理成会议纪要”。Skill 是可选增强项，不安装也不影响 MCP 工具使用。
+
 ### Go 安装或源码构建
 
 需要 Go 1.25 或更高版本：
