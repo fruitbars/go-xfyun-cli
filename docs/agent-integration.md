@@ -26,6 +26,14 @@ XFYUN_API_SECRET
 
 不要把真实值提交到仓库、Skill、`.mcp.json` 或提示词。
 
+MCP 服务进程只会继承宿主进程启动时的环境变量。修改或新增凭证后必须完全重启 Codex、Claude Code 或其他宿主；仅在已经打开的宿主背后执行 `export` 不会更新已运行的 MCP 子进程。Codex CLI 应从已设置变量的同一个终端启动；Codex 图形界面可先用 macOS 的 `launchctl setenv` 写入登录会话，再退出并重新打开应用。
+
+```bash
+launchctl setenv XFYUN_APP_ID "$XFYUN_APP_ID"
+launchctl setenv XFYUN_API_KEY "$XFYUN_API_KEY"
+launchctl setenv XFYUN_API_SECRET "$XFYUN_API_SECRET"
+```
+
 ## Codex
 
 在已经配置三项环境变量的终端中，最快的注册方式是：
@@ -50,6 +58,8 @@ default_tools_approval_mode = "writes"
 ```
 
 `env_vars` 只列出从宿主转发的变量名，不保存值。用 `codex mcp list` 或 TUI 的 `/mcp` 检查连接。
+
+`codex mcp get xfyun-ai` 显示变量名只能证明转发规则已配置，不能证明当前宿主进程实际拥有变量；出现“缺少 XFYUN_*”时，优先检查宿主是否已重启以及变量是否在宿主的启动环境中。
 
 把整个 `skills/xfyun-ai` 复制到：
 
