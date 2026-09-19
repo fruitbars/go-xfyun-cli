@@ -8,6 +8,8 @@ import (
 	"image/color"
 	"image/gif"
 	"image/png"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -63,12 +65,84 @@ func TestResponseAcceptsQuotedProtocolStatuses(t *testing.T) {
 }
 
 func TestExtractResultFormats(t *testing.T) {
-	formats := ExtractResultFormats([]byte(`{"document":[{"name":"markdown","value":"# 标题"},{"name":"sed","value":"<text>内容</text>"}],"image":[]}`))
-	if formats.Markdown != "# 标题" || formats.SED != "<text>内容</text>" {
+	formats := ExtractResultFormats([]byte(`{"document":[{"name":"markdown","value":"# 标题"},{"name":"sed","value":[{"type":"paragraph","text":["内容"]}]}],"image":[]}`))
+	if formats.Markdown != "# 标题" || len(formats.SED) != 1 || formats.SED[0]["type"] != "paragraph" {
 		t.Fatalf("formats = %+v", formats)
 	}
-	if got := ExtractResultFormats([]byte("plain text")); got != (ResultFormats{}) {
+	if got := ExtractResultFormats([]byte("plain text")); got.Markdown != "" || len(got.SED) != 0 {
 		t.Fatalf("plain response formats = %+v", got)
+	}
+}
+
+func TestAnnotateImageDrawsSelectedTypes(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 100, 80))
+	for index := range img.Pix {
+		img.Pix[index] = 0xff
+	}
+	var source bytes.Buffer
+	if err := png.Encode(&source, img); err != nil {
+		t.Fatal(err)
+	}
+	response := []byte(`{"image":[{"width":100,"height":80,"content":[{"type":"paragraph","coord":[{"x":10,"y":10},{"x":60,"y":10},{"x":60,"y":30},{"x":10,"y":30}]},{"type":"textline","coord":[{"x":10,"y":40},{"x":60,"y":40},{"x":60,"y":50},{"x":10,"y":50}]}]}]}`)
+	annotated, count, err := AnnotateImage(source.Bytes(), response, "paragraph")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("annotation count = %d, want 1", count)
+	}
+	decoded, _, err := image.Decode(bytes.NewReader(annotated))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded.At(10, 10) == img.At(10, 10) {
+		t.Fatal("annotation did not change the selected box")
+	}
+	if decoded.At(10, 40) != img.At(10, 40) {
+		t.Fatal("unselected type was annotated")
+	}
+	path := filepath.Join(t.TempDir(), "annotation.png")
+	if err := os.WriteFile(path, annotated, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := AnnotateImage(source.Bytes(), []byte("not JSON"), "paragraph"); err == nil {
+		t.Fatal("expected invalid OCR result error")
+	}
+}
+
+func TestParseAnnotationTypesSupportsDocumentedAndHelperTypes(t *testing.T) {
+	types, err := ParseAnnotationTypes("page,information_bar,fingerprint,cell,item,textline")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(types) != 6 {
+		t.Fatalf("types = %v", types)
+	}
+	all, err := ParseAnnotationTypes("all")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != len(SupportedAnnotationTypes) {
+		t.Fatalf("all type count = %d, want %d", len(all), len(SupportedAnnotationTypes))
+	}
+	if _, err := ParseAnnotationTypes("not_a_layout_type"); err == nil {
+		t.Fatal("expected unsupported annotation type error")
+	}
+	if _, _, err := AnnotateImage([]byte("not an image"), []byte(`{}`), "paragraph"); err == nil {
+		t.Fatal("expected invalid source image error")
+	}
+}
+
+func TestTransformAnnotationPointRestoresQuarterTurn(t *testing.T) {
+	tests := []struct {
+		angle float64
+		want  image.Point
+	}{{0, image.Pt(10, 20)}, {90, image.Pt(20, 90)}, {180, image.Pt(70, 80)}, {270, image.Pt(60, 10)}}
+	for _, test := range tests {
+		point := transformAnnotationPoint(image.Pt(10, 20), annotationGeometry{Width: 80, Height: 100, Angle: test.angle}, 80, 100)
+		if point != test.want {
+			t.Fatalf("angle %.0f transformed point = %v, want %v", test.angle, point, test.want)
+		}
 	}
 }
 

@@ -46,15 +46,19 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 		t.Fatalf("tool names = %v, want %v", names, want)
 	}
 	for _, tool := range tools.Tools {
-		if tool.Name != "xfyun_ifasr_result" {
-			continue
-		}
 		schema, err := json.Marshal(tool.InputSchema)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(schema), `"orders"`) {
+		if tool.Name == "xfyun_ifasr_result" && !strings.Contains(string(schema), `"orders"`) {
 			t.Fatalf("IFASR result schema does not expose split orders: %s", schema)
+		}
+		if tool.Name == "xfyun_ocr" {
+			for _, field := range []string{`"include_raw"`, `"annotate"`, `"annotation_types"`, `"annotation_output_path"`} {
+				if !strings.Contains(string(schema), field) {
+					t.Fatalf("OCR schema does not expose %s: %s", field, schema)
+				}
+			}
 		}
 	}
 
@@ -65,6 +69,15 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 	if !invalid.IsError {
 		t.Fatal("invalid tool input should return a tool error")
 	}
+	invalidType, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "xfyun_ocr", Arguments: map[string]any{
+		"input_path": "/does/not/matter.png", "annotate": true, "annotation_types": "not_a_layout_type",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !invalidType.IsError || !strings.Contains(invalidType.Content[0].(*mcp.TextContent).Text, "unsupported OCR annotation type") {
+		t.Fatalf("invalid annotation type result = %+v", invalidType)
+	}
 	if err := session.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -73,6 +86,38 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 	case <-serverErrors:
 	case <-time.After(2 * time.Second):
 		t.Fatal("server did not stop")
+	}
+}
+
+func TestSaveOCRAnnotationAcceptsExistingDottedDirectory(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "annotations.with-dot")
+	if err := os.Mkdir(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path, err := saveOCRAnnotation([]byte("png"), directory, 2, 3, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(directory, "page_002.png")
+	if path != want {
+		t.Fatalf("path = %q, want %q", path, want)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "png" {
+		t.Fatalf("annotation data = %q", data)
+	}
+	if _, err := saveOCRAnnotation([]byte("new"), directory, 2, 3, false); err == nil {
+		t.Fatal("expected existing annotation rejection")
+	}
+	if _, err := saveOCRAnnotation([]byte("new"), directory, 2, 3, true); err != nil {
+		t.Fatal(err)
+	}
+	data, err = os.ReadFile(path)
+	if err != nil || string(data) != "new" {
+		t.Fatalf("forced annotation data = %q, err = %v", data, err)
 	}
 }
 

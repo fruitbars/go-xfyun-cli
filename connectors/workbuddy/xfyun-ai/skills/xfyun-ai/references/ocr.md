@@ -8,9 +8,12 @@ PDF 由内嵌 PDFium WebAssembly 渲染，无 CGO、无需系统安装渲染器�
 
 - 保留文档结构/返回 Markdown：`result_format="json,markdown"`（默认）。需要 SED 时使用 `json,sed` 或 `json,markdown,sed`；仅 JSON 使用 `json`。
 - 工具响应会提取 `markdown`/`sed` 字段，并将可读结果放入 `text`；需要完整坐标和版面 JSON 时传 `include_raw=true`，再读取 `raw`。
+- 在原图标注版面类型：`annotate=true`，并用 `annotation_types="paragraph,title,table"` 或 `"all"` 选择类型。`annotation_output_path` 对单页是 PNG 路径，对多页是目录；不指定则自动生成临时路径。单页 PNG 不超过 8 MiB 时也会作为 MCP 图片直接返回。
 - 字符级坐标：`result_option="normal,char"`；不返回行坐标：`normal,no_line_position`；两者兼用：`normal,char,no_line_position`。
 - 自动旋转阈值：`rotation_min_angle` 为 0–180，默认 5。
 - 使用拍摄方向信息：`exif_option="1"`；透明通道影响内容时：`alpha_option="1"`。
 - `markdown_options`、`sed_options` 使用逗号分隔的 `name=value`，按需求控制印章、二维码、条码、表格、公式、代码、水印、页眉、页脚、页码、图片等元素；`table=2` 表示有线表格处理。
+
+标注支持完整的版面元素清单：`page`、`layout`、`region`、`page_header`、`title`、`paragraph`、`textline`、`table`、`cell`、`graph`、`list`、`item`、`formula`、`code`、`pseudocode`、`information_bar`、`seal`、`fingerprint`、`barcode`、`qrcode`、`watermark`、`page_footer`、`page_number`、`annotation`、`footnote`、`key`、`value`、`contents`。默认只选择常见语义类型，`all` 选择全部。
 
 服务文档中的 `json_element_option` 暂不支持；本客户端也暂不支持 `streaming_layout`，不要向用户承诺流式版面输出。

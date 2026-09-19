@@ -2,13 +2,17 @@ package ocr
 
 import "encoding/json"
 
-// ResultFormats contains the human-readable document formats returned by the
-// OCR large-model response. The raw decoded response remains available to
-// callers that need coordinates, font attributes, or other image details.
+// ResultFormats contains the readable Markdown and structured SED document
+// formats returned by the OCR large-model response. The raw decoded response
+// remains available to callers that need the full layout tree.
 type ResultFormats struct {
 	Markdown string
-	SED      string
+	SED      []SEDElement
 }
+
+// SEDElement preserves one service-defined structured element. The service
+// may add fields over time, so the map retains data not known by this client.
+type SEDElement map[string]any
 
 // ExtractResultFormats extracts document-level Markdown and SED values without
 // walking the large image/coordinate tree. Plain-text or unknown result
@@ -25,15 +29,11 @@ func ExtractResultFormats(data []byte) ResultFormats {
 	}
 	formats := ResultFormats{}
 	for _, document := range wire.Document {
-		var value string
-		if err := json.Unmarshal(document.Value, &value); err != nil {
-			continue
-		}
 		switch document.Name {
 		case "markdown":
-			formats.Markdown = value
+			_ = json.Unmarshal(document.Value, &formats.Markdown)
 		case "sed":
-			formats.SED = value
+			_ = json.Unmarshal(document.Value, &formats.SED)
 		}
 	}
 	return formats

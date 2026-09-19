@@ -22,4 +22,6 @@ PDF OCR uses embedded PDFium WebAssembly: no CGO, Poppler, or other system rende
 
 OCR responses expose readable `markdown`/`sed` fields extracted from the service `document` section. The default `text` is the readable result; pass `include_raw=true` when coordinate and layout details from the full decoded JSON are needed, then read `raw`.
 
+Set `annotate=true` to draw OCR layout element types over the source image. Select types with comma-separated `annotation_types` or use `all`. A single page returns an inline PNG (up to 8 MiB) plus `annotation_path`; multi-page calls return `annotation_paths` without embedding every image.
+
 For local launcher development, `XFYUN_AI_MCP_BINARY` can point to a locally built `xfyun-ai-mcp` executable.

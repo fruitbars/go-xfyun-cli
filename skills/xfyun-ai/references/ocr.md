@@ -11,6 +11,7 @@ For one image/page, `xfyun_ocr` returns `text` directly. For multiple selected p
 - “Return Markdown / preserve document structure”: `result_format="json,markdown"` (default).
 - “Also return SED”: `result_format="json,sed"` or `"json,markdown,sed"`.
 - OCR tool responses expose extracted `markdown`/`sed` fields and use the readable result as `text`; pass `include_raw=true` to also return the full decoded JSON as `raw`.
+- “Mark layout types on the image”: `annotate=true`. Use `annotation_types="paragraph,title,table"` or `"all"`; optionally set `annotation_output_path` to a PNG for one page or a directory for multiple pages. A single image is also returned as MCP `image/png` when it is at most 8 MiB.
 - “Character boxes / character-level coordinates”: `result_option="normal,char"`.
 - “Do not return line coordinates”: `result_option="normal,no_line_position"`; combine both as `"normal,char,no_line_position"`.
 - “Recognize a slightly rotated scan”: lower or raise `rotation_min_angle` within 0–180 degrees. Default is 5.
@@ -21,4 +22,6 @@ For one image/page, `xfyun_ocr` returns `text` directly. For multiple selected p
 
 Valid `result_format` values are `json`, `json,markdown`, `json,sed`, and `json,markdown,sed`. `json_element_option` is reserved by the service and is intentionally not exposed. The API documents `streaming_layout`, but this client currently supports only one-shot output; do not claim streaming-layout support.
 
-Return the decoded result text. The response may itself be JSON containing Markdown/SED fields; preserve the requested fields instead of summarizing them away.
+Supported annotation types are `page`, `layout`, `region`, `page_header`, `title`, `paragraph`, `textline`, `table`, `cell`, `graph`, `list`, `item`, `formula`, `code`, `pseudocode`, `information_bar`, `seal`, `fingerprint`, `barcode`, `qrcode`, `watermark`, `page_footer`, `page_number`, `annotation`, `footnote`, `key`, `value`, and `contents`. The default selects common semantic content types and avoids structural/helper types; `all` selects the complete list.
+
+Return extracted Markdown directly when requested. SED is a structured array of typed elements with coordinates and text; preserve that array instead of converting or summarizing it. Use `raw` only when the user needs the complete coordinate/layout tree.
