@@ -3,10 +3,18 @@
 Cross-platform `npx` launcher for the `xfyun-ai-mcp` stdio MCP server.
 
 ```bash
-npx -y @fruitbars/xfyun-ai-mcp@0.4.0
+npx -y @fruitbars/xfyun-ai-mcp@0.4.1
 ```
 
 The launcher selects an npm optional dependency for Windows, macOS, or Linux on x64/arm64 and starts the native Go server with inherited stdio and environment variables. Configure `XFYUN_APP_ID`, `XFYUN_API_KEY`, and `XFYUN_API_SECRET` in the MCP host.
+
+To configure Codex without editing TOML by hand, run:
+
+```bash
+npx -y @fruitbars/xfyun-ai-mcp@latest setup codex
+```
+
+This writes the MCP command and environment-variable names only; set the three credential values in the host environment and restart Codex.
 
 The optional media helper is passed to the native server automatically. TTS text over the 64 KiB service-session limit is split at safe text boundaries and written to one audio output. IFASR audio over 5 hours or 500 MiB is probed, losslessly split, submitted as multiple orders, and merged by the result tool. Users do not need to prepare chunks themselves.
 

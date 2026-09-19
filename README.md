@@ -40,6 +40,12 @@ Codex：
 codex mcp add xfyun-ai -- npx -y @fruitbars/xfyun-ai-mcp@latest
 ```
 
+也可以让启动器合并 Codex 配置（不会写入密钥）：
+
+```bash
+npx -y @fruitbars/xfyun-ai-mcp@latest setup codex
+```
+
 Claude Code：
 
 ```bash
