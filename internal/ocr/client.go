@@ -62,6 +62,30 @@ type Header struct {
 	Status  int    `json:"status"`
 }
 
+// UnmarshalJSON accepts numeric protocol fields returned either as JSON
+// numbers or quoted decimal strings by different OCR response variants.
+func (h *Header) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		Code    json.RawMessage `json:"code"`
+		Message string          `json:"message"`
+		SID     string          `json:"sid"`
+		Status  json.RawMessage `json:"status"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	code, err := decodeJSONInt(wire.Code, "header.code")
+	if err != nil {
+		return err
+	}
+	status, err := decodeJSONInt(wire.Status, "header.status")
+	if err != nil {
+		return err
+	}
+	*h = Header{Code: code, Message: wire.Message, SID: wire.SID, Status: status}
+	return nil
+}
+
 type Result struct {
 	Encoding string `json:"encoding"`
 	Compress string `json:"compress"`
@@ -78,36 +102,49 @@ func (r *Result) UnmarshalJSON(data []byte) error {
 		Encoding string          `json:"encoding"`
 		Compress string          `json:"compress"`
 		Format   string          `json:"format"`
-		Status   int             `json:"status"`
+		Status   json.RawMessage `json:"status"`
 		Seq      json.RawMessage `json:"seq"`
 		Text     string          `json:"text"`
 	}
 	if err := json.Unmarshal(data, &wire); err != nil {
 		return err
 	}
-	seq := 0
-	if len(wire.Seq) > 0 && string(wire.Seq) != "null" {
-		if err := json.Unmarshal(wire.Seq, &seq); err != nil {
-			var quoted string
-			if quoteErr := json.Unmarshal(wire.Seq, &quoted); quoteErr != nil {
-				return fmt.Errorf("OCR result seq is neither an integer nor a numeric string: %s", string(wire.Seq))
-			}
-			parsed, parseErr := strconv.Atoi(strings.TrimSpace(quoted))
-			if parseErr != nil {
-				return fmt.Errorf("OCR result seq is not numeric: %q", quoted)
-			}
-			seq = parsed
-		}
+	status, err := decodeJSONInt(wire.Status, "result.status")
+	if err != nil {
+		return err
+	}
+	seq, err := decodeJSONInt(wire.Seq, "result.seq")
+	if err != nil {
+		return err
 	}
 	*r = Result{
 		Encoding: wire.Encoding,
 		Compress: wire.Compress,
 		Format:   wire.Format,
-		Status:   wire.Status,
+		Status:   status,
 		Seq:      seq,
 		Text:     wire.Text,
 	}
 	return nil
+}
+
+func decodeJSONInt(raw json.RawMessage, field string) (int, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0, nil
+	}
+	var value int
+	if err := json.Unmarshal(raw, &value); err == nil {
+		return value, nil
+	}
+	var quoted string
+	if err := json.Unmarshal(raw, &quoted); err != nil {
+		return 0, fmt.Errorf("OCR %s is neither an integer nor a numeric string: %s", field, string(raw))
+	}
+	value, err := strconv.Atoi(strings.TrimSpace(quoted))
+	if err != nil {
+		return 0, fmt.Errorf("OCR %s is not numeric: %q", field, quoted)
+	}
+	return value, nil
 }
 
 type Response struct {

@@ -29,4 +29,4 @@ author: fruitbars
 
 普通录音优先使用 IFASR。长任务先以 `wait=false` 查询，状态 `4` 为完成、`-1` 为失败、`0` 或 `3` 为未完成。文件路径必须对运行本地 MCP Server 的机器可见。
 
-单页 OCR 可直接返回文本；多页 OCR 应按行或按页消费返回的 NDJSON，并在用户需要完整结果时保留文件路径。TTS 完成后报告输出路径、格式和字节数，不把二进制音频读入对话。需要安装、鉴权或宿主配置时读取 [references/integration.md](references/integration.md)。
+OCR 返回中有 `markdown` 时优先使用它；该字段来自 `document[name=markdown].value`。默认 `text` 是可读的 Markdown/SED 结果，需要坐标和版面细节时显式传 `include_raw=true`，再读取 `raw`。多页 OCR 应按行或按页消费返回的 NDJSON，并在用户需要完整结果时保留文件路径。TTS 完成后报告输出路径、格式和字节数，不把二进制音频读入对话。需要安装、鉴权或宿主配置时读取 [references/integration.md](references/integration.md)。

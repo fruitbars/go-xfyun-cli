@@ -50,6 +50,7 @@ type OCRInput struct {
 	Pages           string   `json:"pages,omitempty" jsonschema:"PDF page selection such as 1-3,5. Default: all pages."`
 	PDFDPI          int      `json:"pdf_dpi,omitempty" jsonschema:"PDF page rendering resolution from 72 to 300 DPI. Default: 150."`
 	ResultFormat    string   `json:"result_format,omitempty" jsonschema:"json; json,markdown; json,sed; or json,markdown,sed. Default: json,markdown."`
+	IncludeRaw      bool     `json:"include_raw,omitempty" jsonschema:"Include the full decoded OCR JSON with coordinates and layout details. Default: false."`
 	ResultOption    string   `json:"result_option,omitempty" jsonschema:"normal plus optional char and no_line_position. Default: normal."`
 	MarkdownOptions string   `json:"markdown_options,omitempty" jsonschema:"Element controls such as seal=1,qrcode=1,table=2,watermark=0."`
 	SEDOptions      string   `json:"sed_options,omitempty" jsonschema:"SED element controls such as seal=1,qrcode=1,table=2,watermark=0."`
@@ -61,6 +62,9 @@ type OCRInput struct {
 
 type OCROutput struct {
 	Text          string `json:"text,omitempty"`
+	Markdown      string `json:"markdown,omitempty"`
+	SED           string `json:"sed,omitempty"`
+	Raw           string `json:"raw,omitempty"`
 	SID           string `json:"sid,omitempty"`
 	ResultFormat  string `json:"result_format"`
 	PageCount     int    `json:"page_count"`
@@ -76,6 +80,9 @@ type OCRPageOutput struct {
 	TotalPages int    `json:"total_pages"`
 	DPI        int    `json:"dpi,omitempty"`
 	Text       string `json:"text"`
+	Markdown   string `json:"markdown,omitempty"`
+	SED        string `json:"sed,omitempty"`
+	Raw        string `json:"raw,omitempty"`
 	SID        string `json:"sid,omitempty"`
 }
 
@@ -83,7 +90,7 @@ func addOCRTool(server *mcp.Server, service *Service) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "xfyun_ocr",
 		Title:       "Recognize an image or PDF",
-		Description: "Convert a local raster image or stream a PDF through render, compression, OCR, and release one page at a time. Multi-page results are written incrementally as NDJSON so memory stays bounded.",
+		Description: "Convert a local raster image or stream a PDF through render, compression, OCR, and release one page at a time. Returns readable Markdown/SED by default; set include_raw=true for the full coordinate and layout JSON. Multi-page results are written incrementally as NDJSON so memory stays bounded.",
 		Annotations: annotations(false, true, true),
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input OCRInput) (*mcp.CallToolResult, OCROutput, error) {
 		if input.InputPath == "" {
@@ -165,10 +172,20 @@ func addOCRTool(server *mcp.Server, service *Service) {
 			if recognizeErr != nil {
 				return fmt.Errorf("OCR page %d image %d: %w", documentImage.Page, documentImage.Index, recognizeErr)
 			}
+			formats := ocr.ExtractResultFormats(decoded)
+			displayText := string(decoded)
+			if formats.Markdown != "" {
+				displayText = formats.Markdown
+			} else if formats.SED != "" {
+				displayText = formats.SED
+			}
 			page := OCRPageOutput{
 				Type: "page", Page: documentImage.Page, Image: documentImage.Index,
 				TotalPages: documentImage.PageCount, DPI: documentImage.DPI,
-				Text: string(decoded), SID: response.Header.SID,
+				Text: displayText, Markdown: formats.Markdown, SED: formats.SED, SID: response.Header.SID,
+			}
+			if input.IncludeRaw {
+				page.Raw = string(decoded)
 			}
 			output.PageCount++
 			if outputEncoder != nil {
@@ -177,6 +194,9 @@ func addOCRTool(server *mcp.Server, service *Service) {
 				}
 			} else {
 				output.Text = page.Text
+				output.Markdown = page.Markdown
+				output.SED = page.SED
+				output.Raw = page.Raw
 				output.SID = page.SID
 			}
 			if req != nil && req.Params != nil && req.Session != nil {

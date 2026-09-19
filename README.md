@@ -175,7 +175,7 @@ xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd...' --no-wait
 - `xfyun_ifasr_submit`
 - `xfyun_ifasr_result`
 
-IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先写同目录临时文件再原子提交，默认拒绝覆盖。OCR 单图结果直接返回；多页结果逐页写入 NDJSON，并返回 `output_path`、`page_count`，不会把整份结果塞进一次 MCP 响应。可显式设置 `output_path`，不设置时使用临时文件；覆盖已有文件必须设置 `force=true`。支持 progress token 的 MCP 宿主还会收到逐页进度通知。详细参数与自然语言映射位于 [skills/xfyun-ai](skills/xfyun-ai)。
+IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先写同目录临时文件再原子提交，默认拒绝覆盖。OCR 默认从讯飞响应的 `document` 节点提取可读的 `markdown`/`sed`，不会把带坐标的完整识别树塞进 `text`；需要坐标和版面属性时传 `include_raw=true`，从 `raw` 读取原始 JSON。多页结果逐页写入 NDJSON，并返回 `output_path`、`page_count`，不会把整份结果塞进一次 MCP 响应。可显式设置 `output_path`，不设置时使用临时文件；覆盖已有文件必须设置 `force=true`。支持 progress token 的 MCP 宿主还会收到逐页进度通知。详细参数与自然语言映射位于 [skills/xfyun-ai](skills/xfyun-ai)。
 
 通用 stdio 配置：
 

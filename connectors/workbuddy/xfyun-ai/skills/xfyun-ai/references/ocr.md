@@ -7,6 +7,7 @@ PDF 由内嵌 PDFium WebAssembly 渲染，无 CGO、无需系统安装渲染器�
 单图/单页直接返回 `text`。多页调用不会把所有文字装进 MCP 响应，而是每页写一条 NDJSON，并返回 `output_path`、`output_format="ndjson"` 和 `page_count`。用户要求固定位置时传 `output_path`；省略时工具创建临时文件并标记 `auto_generated=true`。只有用户允许覆盖时才传 `force=true`。WorkBuddy 若提供 progress token，还会逐页显示处理进度。
 
 - 保留文档结构/返回 Markdown：`result_format="json,markdown"`（默认）。需要 SED 时使用 `json,sed` 或 `json,markdown,sed`；仅 JSON 使用 `json`。
+- 工具响应会提取 `markdown`/`sed` 字段，并将可读结果放入 `text`；需要完整坐标和版面 JSON 时传 `include_raw=true`，再读取 `raw`。
 - 字符级坐标：`result_option="normal,char"`；不返回行坐标：`normal,no_line_position`；两者兼用：`normal,char,no_line_position`。
 - 自动旋转阈值：`rotation_min_angle` 为 0–180，默认 5。
 - 使用拍摄方向信息：`exif_option="1"`；透明通道影响内容时：`alpha_option="1"`。

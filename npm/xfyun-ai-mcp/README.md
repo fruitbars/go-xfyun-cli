@@ -20,4 +20,6 @@ The optional media helper is passed to the native server automatically. TTS text
 
 PDF OCR uses embedded PDFium WebAssembly: no CGO, Poppler, or other system renderer is required. Text, vector, and scanned PDFs render at 150 DPI by default. Rendering, compression, OCR, NDJSON result writing, and cleanup happen one page at a time, so memory use does not grow with the full document. The PDFium runtime has a 512 MiB hard limit and concurrent PDFs are serialized within one server process. Multi-page MCP calls return an `output_path` instead of accumulating every page in one response.
 
+OCR responses expose readable `markdown`/`sed` fields extracted from the service `document` section. The default `text` is the readable result; pass `include_raw=true` when coordinate and layout details from the full decoded JSON are needed, then read `raw`.
+
 For local launcher development, `XFYUN_AI_MCP_BINARY` can point to a locally built `xfyun-ai-mcp` executable.

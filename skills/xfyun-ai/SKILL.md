@@ -25,7 +25,7 @@ Prefer IFASR over RTASR for completed `mp3`, `wav`, `flac`, `ogg`, or multi-hour
 
 ## Handle results
 
-- Return single-page OCR and transcription text directly when that satisfies the request; retain SIDs and order identifiers for diagnostics. For multi-page OCR, consume the returned NDJSON incrementally or in page ranges and preserve its path when the user needs the complete result.
+- Return the OCR `markdown` field directly when present; it is extracted from `document[name=markdown].value`. The default `text` is the readable Markdown/SED result, while the full coordinate/layout JSON is available only when `include_raw=true` as `raw`. For multi-page OCR, consume the returned NDJSON incrementally or in page ranges and preserve its path when the user needs the complete result.
 - Treat IFASR status `4` as complete, `-1` as failed, and `0` or `3` as unfinished.
 - When IFASR smoothing or colloquial processing is enabled, `transcript` is processed text and `original_transcript` is the retained original when the service returns `lattice2`. Request `include_raw=true` for language-analysis details.
 - For TTS, report the resolved output path, encoding, byte count, and SID. Do not ingest generated binary audio into conversation context.

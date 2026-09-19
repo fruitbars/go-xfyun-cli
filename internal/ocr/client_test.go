@@ -51,6 +51,27 @@ func TestResultAcceptsNumericAndQuotedSeq(t *testing.T) {
 	}
 }
 
+func TestResponseAcceptsQuotedProtocolStatuses(t *testing.T) {
+	var response Response
+	input := `{"header":{"code":"0","status":"0","message":"ok","sid":"sid"},"payload":{"result":{"status":"0","seq":"3","text":""}}}`
+	if err := json.Unmarshal([]byte(input), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Header.Code != 0 || response.Header.Status != 0 || response.Payload.Result.Status != 0 || response.Payload.Result.Seq != 3 {
+		t.Fatalf("decoded response = %+v / %+v", response.Header, response.Payload.Result)
+	}
+}
+
+func TestExtractResultFormats(t *testing.T) {
+	formats := ExtractResultFormats([]byte(`{"document":[{"name":"markdown","value":"# 标题"},{"name":"sed","value":"<text>内容</text>"}],"image":[]}`))
+	if formats.Markdown != "# 标题" || formats.SED != "<text>内容</text>" {
+		t.Fatalf("formats = %+v", formats)
+	}
+	if got := ExtractResultFormats([]byte("plain text")); got != (ResultFormats{}) {
+		t.Fatalf("plain response formats = %+v", got)
+	}
+}
+
 func TestPrepareImageConvertsUnsupportedAPIFormat(t *testing.T) {
 	img := image.NewPaletted(image.Rect(0, 0, 2, 2), []color.Color{color.White, color.Black})
 	img.SetColorIndex(1, 1, 1)

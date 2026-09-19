@@ -10,6 +10,7 @@ For one image/page, `xfyun_ocr` returns `text` directly. For multiple selected p
 
 - “Return Markdown / preserve document structure”: `result_format="json,markdown"` (default).
 - “Also return SED”: `result_format="json,sed"` or `"json,markdown,sed"`.
+- OCR tool responses expose extracted `markdown`/`sed` fields and use the readable result as `text`; pass `include_raw=true` to also return the full decoded JSON as `raw`.
 - “Character boxes / character-level coordinates”: `result_option="normal,char"`.
 - “Do not return line coordinates”: `result_option="normal,no_line_position"`; combine both as `"normal,char,no_line_position"`.
 - “Recognize a slightly rotated scan”: lower or raise `rotation_min_angle` within 0–180 degrees. Default is 5.
