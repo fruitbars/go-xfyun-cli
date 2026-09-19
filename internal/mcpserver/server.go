@@ -517,10 +517,14 @@ func addRTASRTool(server *mcp.Server, service *Service) {
 }
 
 type IFASRSubmitInput struct {
-	InputPath        string            `json:"input_path" jsonschema:"Local mp3, wav, pcm, opus, flac, ogg, or speex audio path. Files over 5 hours or 500 MiB are split automatically."`
+	InputPath        string            `json:"input_path,omitempty" jsonschema:"Local mp3, wav, pcm, opus, flac, ogg, or speex audio path. Use exactly one of input_path or audio_url. Local files over 5 hours or 500 MiB are split automatically."`
+	AudioURL         string            `json:"audio_url,omitempty" jsonschema:"Absolute HTTP(S) audio URL for audioMode=urlLink. Use exactly one of input_path or audio_url; maximum 512 characters."`
+	FileName         string            `json:"file_name,omitempty" jsonschema:"Remote audio filename including a supported extension; required with audio_url."`
+	FileSizeBytes    int64             `json:"file_size_bytes,omitempty" jsonschema:"Remote audio byte size; required with audio_url and limited to 500 MiB."`
 	Language         string            `json:"language,omitempty" jsonschema:"autodialect or autominor. Default: autodialect."`
-	DurationMS       int64             `json:"duration_ms,omitempty" jsonschema:"Known duration in milliseconds. Zero lets the tool probe it automatically."`
-	Domain           string            `json:"domain,omitempty" jsonschema:"Domain optimization such as finance or medical."`
+	DurationMS       int64             `json:"duration_ms,omitempty" jsonschema:"Known duration in milliseconds. Zero probes local files automatically and disables duration validation for audio_url."`
+	Domain           string            `json:"domain,omitempty" jsonschema:"Domain optimization: court, finance, medical, tech, sport, edu, isp, gov, game, ecom, mil, com, life, ent, culture, or car."`
+	TrackMode        int               `json:"track_mode,omitempty" jsonschema:"Channel mode: 1 mixed or 2 stereo tracks. track_mode=2 is incompatible with role_type and language_analysis."`
 	RoleType         int               `json:"role_type,omitempty" jsonschema:"Speaker separation: 0 off, 1 generic, 3 voiceprint."`
 	RoleNum          int               `json:"role_num,omitempty" jsonschema:"Expected speaker count from 0 to 10."`
 	FeatureIDs       string            `json:"feature_ids,omitempty" jsonschema:"Comma-separated registered voiceprint IDs; role_type=3 only; maximum 64."`
@@ -553,18 +557,36 @@ type IFASRSubmitPart struct {
 func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "xfyun_ifasr_submit",
-		Title:       "Submit file transcription",
-		Description: "Upload a local recording, automatically split it at service limits, and return one or more orders needed to query transcription.",
+		Title:       "Submit recording transcription",
+		Description: "Submit a local or HTTP(S) recording, automatically split over-limit local files, and return one or more orders needed to query transcription.",
 		Annotations: annotations(false, false, true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, input IFASRSubmitInput) (*mcp.CallToolResult, IFASRSubmitOutput, error) {
 		client := ifasr.Client{Credentials: service.credentials}
-		batch, err := client.TranscribeFile(ctx, input.InputPath, ifasr.Options{
-			Language: input.Language, DurationMS: input.DurationMS, Domain: input.Domain,
+		opts := ifasr.Options{
+			Language: input.Language, DurationMS: input.DurationMS, Domain: input.Domain, TrackMode: input.TrackMode,
 			CallbackURL: input.CallbackURL, RoleType: input.RoleType, RoleNum: input.RoleNum, FeatureIDs: input.FeatureIDs,
 			Smooth: input.Smooth, Colloquial: input.Colloquial, VADMode: input.VADMode,
 			CantoneseScript: input.CantoneseScript, Analysis: input.LanguageAnalysis,
 			Extra: input.Extra, NoWait: true,
-		})
+		}
+		hasPath, hasURL := input.InputPath != "", input.AudioURL != ""
+		if hasPath == hasURL {
+			return nil, IFASRSubmitOutput{}, fmt.Errorf("provide exactly one of input_path or audio_url")
+		}
+		if hasURL {
+			if input.FileName == "" || input.FileSizeBytes <= 0 {
+				return nil, IFASRSubmitOutput{}, fmt.Errorf("file_name and positive file_size_bytes are required with audio_url")
+			}
+			result, err := client.TranscribeURL(ctx, input.AudioURL, input.FileName, input.FileSizeBytes, opts)
+			if err != nil {
+				return nil, IFASRSubmitOutput{}, err
+			}
+			return nil, IFASRSubmitOutput{
+				OrderID: result.OrderID, SignatureRandom: result.SignatureRand,
+				TaskEstimateTime: result.Response.Content.TaskEstimateTime,
+			}, nil
+		}
+		batch, err := client.TranscribeFile(ctx, input.InputPath, opts)
 		if err != nil {
 			return nil, IFASRSubmitOutput{}, err
 		}
@@ -609,8 +631,11 @@ type IFASRResultOutput struct {
 	Transcript         string            `json:"transcript,omitempty"`
 	OriginalTranscript string            `json:"original_transcript,omitempty"`
 	RawResult          string            `json:"raw_result,omitempty"`
+	RawResponse        string            `json:"raw_response,omitempty"`
 	Language           string            `json:"language,omitempty"`
 	OriginalDurationMS int64             `json:"original_duration_ms,omitempty"`
+	ExpireTime         int64             `json:"expire_time,omitempty"`
+	TaskEstimateTime   int64             `json:"task_estimate_time_ms,omitempty"`
 	Split              bool              `json:"split"`
 	Parts              []IFASRPartResult `json:"parts,omitempty"`
 }
@@ -623,8 +648,11 @@ type IFASRPartResult struct {
 	Transcript         string `json:"transcript,omitempty"`
 	OriginalTranscript string `json:"original_transcript,omitempty"`
 	RawResult          string `json:"raw_result,omitempty"`
+	RawResponse        string `json:"raw_response,omitempty"`
 	Language           string `json:"language,omitempty"`
 	OriginalDurationMS int64  `json:"original_duration_ms,omitempty"`
+	ExpireTime         int64  `json:"expire_time,omitempty"`
+	TaskEstimateTime   int64  `json:"task_estimate_time_ms,omitempty"`
 }
 
 func addIFASRResultTool(server *mcp.Server, service *Service) {
@@ -681,7 +709,8 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 		if len(output.Parts) == 1 {
 			part := output.Parts[0]
 			output.OrderID, output.FailType, output.Language = part.OrderID, part.FailType, part.Language
-			output.RawResult = part.RawResult
+			output.RawResult, output.RawResponse = part.RawResult, part.RawResponse
+			output.ExpireTime, output.TaskEstimateTime = part.ExpireTime, part.TaskEstimateTime
 			output.Parts = nil
 		}
 		return nil, output, nil
@@ -733,9 +762,15 @@ func queryIFASRPart(ctx context.Context, client *ifasr.Client, order IFASROrderR
 		OrderID: order.OrderID, Status: info.Status, FailType: info.FailType,
 		Transcript: result.Transcript, OriginalTranscript: result.OriginalTranscript,
 		Language: info.Language, OriginalDurationMS: info.OriginalDuration,
+		ExpireTime: info.ExpireTime, TaskEstimateTime: result.Response.Content.TaskEstimateTime,
 	}
 	if input.IncludeRaw {
 		part.RawResult = result.Response.Content.OrderResult
+		encoded, err := json.Marshal(result.Response)
+		if err != nil {
+			return IFASRPartResult{}, fmt.Errorf("encode IFASR raw response: %w", err)
+		}
+		part.RawResponse = string(encoded)
 	}
 	return part, nil
 }

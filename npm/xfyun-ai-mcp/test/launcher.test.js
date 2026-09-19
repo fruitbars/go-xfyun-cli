@@ -64,6 +64,9 @@ test("package README documents resumable IFASR usage", () => {
     "order_id",
     "signature_random",
     "parts",
+    "audio_url",
+    "track_mode",
+    "eng_max_clusters",
     "100020",
     "docs/ifasr.md"
   ]) {

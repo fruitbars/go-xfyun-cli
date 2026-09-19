@@ -53,6 +53,24 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 		if tool.Name == "xfyun_ifasr_result" && !strings.Contains(string(schema), `"orders"`) {
 			t.Fatalf("IFASR result schema does not expose split orders: %s", schema)
 		}
+		if tool.Name == "xfyun_ifasr_submit" {
+			for _, field := range []string{`"audio_url"`, `"file_name"`, `"file_size_bytes"`, `"track_mode"`} {
+				if !strings.Contains(string(schema), field) {
+					t.Fatalf("IFASR submit schema does not expose %s: %s", field, schema)
+				}
+			}
+		}
+		if tool.Name == "xfyun_ifasr_result" {
+			outputSchema, err := json.Marshal(tool.OutputSchema)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, field := range []string{`"expire_time"`, `"task_estimate_time_ms"`, `"raw_response"`} {
+				if !strings.Contains(string(outputSchema), field) {
+					t.Fatalf("IFASR result output schema does not expose %s: %s", field, outputSchema)
+				}
+			}
+		}
 		if tool.Name == "xfyun_ocr" {
 			for _, field := range []string{`"include_raw"`, `"annotate"`, `"annotation_types"`, `"annotation_output_path"`} {
 				if !strings.Contains(string(schema), field) {

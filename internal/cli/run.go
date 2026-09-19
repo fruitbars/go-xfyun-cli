@@ -344,11 +344,15 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	var creds config.Credentials
 	credentialFlags(fs, &creds)
 	inputPath := fs.String("input", "", "audio file path (upload mode)")
+	audioURL := fs.String("audio-url", "", "absolute HTTP(S) audio URL (urlLink upload mode)")
+	fileName := fs.String("file-name", "", "remote audio filename with extension (required with --audio-url)")
+	fileSizeBytes := fs.Int64("file-size-bytes", 0, "remote audio byte size (required with --audio-url)")
 	orderID := fs.String("order-id", "", "existing order ID (query mode)")
 	signatureRandom := fs.String("signature-random", "", "signature random returned during upload (query mode)")
 	language := fs.String("language", "autodialect", "autodialect or autominor")
 	durationMS := fs.Int64("duration-ms", 0, "known audio duration in milliseconds; zero auto-detects")
 	domain := fs.String("domain", "", "domain optimization, such as finance or medical")
+	trackMode := fs.Int("track-mode", 0, "channel mode: 0 service default, 1 mixed, 2 stereo tracks")
 	roleType := fs.Int("role-type", 0, "speaker separation: 0 off, 1 generic, 3 voiceprint")
 	roleNum := fs.Int("role-num", 0, "expected speaker count from 0 to 10")
 	featureIDs := fs.String("feature-ids", "", "comma-separated registered voiceprint IDs")
@@ -366,7 +370,7 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	var extra keyValueFlags
 	fs.Var(&extra, "param", "extra upload query parameter key=value (repeatable)")
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: xfyun ifasr --input AUDIO [options]\n   or: xfyun ifasr --order-id ID --signature-random RANDOM [options]")
+		fmt.Fprintln(stderr, "Usage: xfyun ifasr --input AUDIO [options]\n   or: xfyun ifasr --audio-url URL --file-name NAME --file-size-bytes N [options]\n   or: xfyun ifasr --order-id ID --signature-random RANDOM [options]")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -375,11 +379,20 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	if *analysis && *resultType == "transfer" {
 		*resultType = "transfer,analysis"
 	}
-	if (*inputPath == "") == (*orderID == "") {
-		return fmt.Errorf("provide exactly one of --input or --order-id")
+	modeCount := 0
+	for _, configured := range []bool{*inputPath != "", *audioURL != "", *orderID != ""} {
+		if configured {
+			modeCount++
+		}
+	}
+	if modeCount != 1 {
+		return fmt.Errorf("provide exactly one of --input, --audio-url, or --order-id")
 	}
 	if *orderID != "" && *signatureRandom == "" {
 		return fmt.Errorf("--signature-random is required with --order-id")
+	}
+	if *audioURL != "" && (*fileName == "" || *fileSizeBytes <= 0) {
+		return fmt.Errorf("--file-name and positive --file-size-bytes are required with --audio-url")
 	}
 	creds.FromEnv()
 	if err := creds.ValidateSigned(); err != nil {
@@ -391,7 +404,7 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 		cantoneseScriptOption = cantoneseScript
 	}
 	opts := ifasr.Options{
-		Language: *language, DurationMS: *durationMS, Domain: *domain,
+		Language: *language, DurationMS: *durationMS, Domain: *domain, TrackMode: *trackMode,
 		CallbackURL: *callbackURL, RoleType: *roleType, RoleNum: *roleNum, FeatureIDs: *featureIDs,
 		Smooth: smooth, Colloquial: colloquial, VADMode: *ifasrVADMode,
 		CantoneseScript: cantoneseScriptOption, Analysis: *analysis,
@@ -406,6 +419,8 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 		if len(batch.Parts) == 1 {
 			result = batch.Parts[0].Result
 		}
+	} else if *audioURL != "" {
+		result, err = client.TranscribeURL(ctx, *audioURL, *fileName, *fileSizeBytes, opts)
 	} else if *noWait {
 		var response ifasr.Response
 		response, err = client.Query(ctx, *orderID, *signatureRandom, *resultType)

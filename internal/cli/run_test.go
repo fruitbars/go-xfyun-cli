@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -29,5 +30,16 @@ func TestTTSFailurePreservesForcedOutput(t *testing.T) {
 	entries, err := os.ReadDir(directory)
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("temporary file leaked: %v %v", entries, err)
+	}
+}
+
+func TestIFASRURLRequiresRemoteMetadata(t *testing.T) {
+	t.Setenv("XFYUN_APP_ID", "test")
+	t.Setenv("XFYUN_API_KEY", "test")
+	t.Setenv("XFYUN_API_SECRET", "test")
+	var stdout, stderr bytes.Buffer
+	err := Run(context.Background(), []string{"ifasr", "--audio-url", "https://media.example/meeting.wav"}, bytes.NewReader(nil), &stdout, &stderr)
+	if err == nil || !strings.Contains(err.Error(), "--file-name") {
+		t.Fatalf("error = %v", err)
 	}
 }

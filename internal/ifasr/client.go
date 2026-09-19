@@ -38,10 +38,12 @@ type OrderInfo struct {
 }
 
 type Content struct {
-	OrderID          string    `json:"orderId,omitempty"`
-	TaskEstimateTime int64     `json:"taskEstimateTime,omitempty"`
-	OrderInfo        OrderInfo `json:"orderInfo,omitempty"`
-	OrderResult      string    `json:"orderResult,omitempty"`
+	OrderID          string          `json:"orderId,omitempty"`
+	TaskEstimateTime int64           `json:"taskEstimateTime,omitempty"`
+	OrderInfo        OrderInfo       `json:"orderInfo,omitempty"`
+	OrderResult      string          `json:"orderResult,omitempty"`
+	TransResult      json.RawMessage `json:"transResult,omitempty"`
+	PredictResult    json.RawMessage `json:"predictResult,omitempty"`
 }
 
 type Response struct {
@@ -54,6 +56,7 @@ type Options struct {
 	Language        string
 	DurationMS      int64
 	Domain          string
+	TrackMode       int
 	CallbackURL     string
 	RoleType        int
 	RoleNum         int
@@ -69,6 +72,30 @@ type Options struct {
 	Extra           map[string]string
 	NoWait          bool
 	SignatureRand   string
+}
+
+var supportedDomains = map[string]struct{}{
+	"court": {}, "finance": {}, "medical": {}, "tech": {},
+	"sport": {}, "edu": {}, "isp": {}, "gov": {},
+	"game": {}, "ecom": {}, "mil": {}, "com": {},
+	"life": {}, "ent": {}, "culture": {}, "car": {},
+}
+
+var legacyLFASRParameters = map[string]string{
+	"eng_max_clusters": "use roleNum",
+	"eng_min_clusters": "use roleNum",
+	"eng_dtd_thre":     "no Ifasr_llm equivalent",
+	"eng_control_spk":  "use roleType and roleNum",
+	"eng_combine_max":  "no Ifasr_llm equivalent",
+}
+
+var managedIFASRParameters = map[string]struct{}{
+	"appId": {}, "accessKeyId": {}, "dateTime": {}, "signatureRandom": {},
+	"fileSize": {}, "fileName": {}, "durationCheckDisable": {}, "duration": {},
+	"language": {}, "pd": {}, "callbackUrl": {}, "roleType": {}, "roleNum": {},
+	"featureIds": {}, "audioMode": {}, "audioUrl": {}, "eng_smoothproc": {},
+	"eng_colloqproc": {}, "eng_vad_mdn": {}, "eng_rlang": {}, "analysis": {},
+	"trackMode": {},
 }
 
 type Result struct {
@@ -101,30 +128,54 @@ func (c *Client) Transcribe(ctx context.Context, audio io.Reader, fileName strin
 	if err := validateFileName(fileName); err != nil {
 		return result, err
 	}
-	if opts.Language == "" {
-		opts.Language = "autodialect"
-	}
-	if opts.ResultType == "" {
-		opts.ResultType = "transfer"
-	}
-	if opts.PollInterval == 0 {
-		opts.PollInterval = 2 * time.Second
-	}
-	if opts.MaxWait == 0 {
-		opts.MaxWait = 30 * time.Minute
-	}
-	if err := validateOptions(opts); err != nil {
+	if err := normalizeOptions(&opts); err != nil {
 		return result, err
 	}
-	randomValue := opts.SignatureRand
-	if randomValue == "" {
-		var err error
-		randomValue, err = randomString(16)
-		if err != nil {
-			return result, err
-		}
+	randomValue, err := signatureRandom(opts.SignatureRand)
+	if err != nil {
+		return result, err
 	}
 	uploadResponse, err := c.Upload(ctx, audio, fileName, fileSize, randomValue, opts)
+	if err != nil {
+		return result, err
+	}
+	result.OrderID = uploadResponse.Content.OrderID
+	result.SignatureRand = randomValue
+	result.Response = uploadResponse
+	if opts.NoWait {
+		return result, nil
+	}
+	return c.Wait(ctx, result.OrderID, randomValue, opts)
+}
+
+// TranscribeURL submits an externally hosted recording. Unlike local files,
+// URL inputs cannot be split by this client, so callers must provide the
+// remote byte size and keep the recording within one service order's limits.
+func (c *Client) TranscribeURL(ctx context.Context, audioURL, fileName string, fileSize int64, opts Options) (Result, error) {
+	var result Result
+	if err := c.Credentials.ValidateSigned(); err != nil {
+		return result, err
+	}
+	if err := validateAudioURL(audioURL); err != nil {
+		return result, err
+	}
+	if fileSize <= 0 {
+		return result, fmt.Errorf("audio URL file size must be positive")
+	}
+	if fileSize > MaxAudioBytes {
+		return result, fmt.Errorf("audio URL file is %d bytes; use a local input for automatic splitting above 500 MiB", fileSize)
+	}
+	if err := validateFileName(fileName); err != nil {
+		return result, err
+	}
+	if err := normalizeOptions(&opts); err != nil {
+		return result, err
+	}
+	randomValue, err := signatureRandom(opts.SignatureRand)
+	if err != nil {
+		return result, err
+	}
+	uploadResponse, err := c.UploadURL(ctx, audioURL, fileName, fileSize, randomValue, opts)
 	if err != nil {
 		return result, err
 	}
@@ -141,7 +192,39 @@ func (c *Client) Upload(ctx context.Context, audio io.Reader, fileName string, f
 	if err := c.Credentials.ValidateSigned(); err != nil {
 		return Response{}, err
 	}
-	params := make(map[string]string, len(opts.Extra)+16)
+	params := c.uploadParams(fileName, fileSize, signatureRandom, opts)
+	signature := auth.HMACSHA1(params, c.Credentials.APISecret)
+	endpoint := strings.TrimRight(c.endpoint(), "/") + "/v2/upload?" + auth.Query(params)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, audio)
+	if err != nil {
+		return Response{}, fmt.Errorf("create IFASR upload request: %w", err)
+	}
+	req.ContentLength = fileSize
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("signature", signature)
+	return c.do(req)
+}
+
+func (c *Client) UploadURL(ctx context.Context, audioURL, fileName string, fileSize int64, signatureRandom string, opts Options) (Response, error) {
+	if err := c.Credentials.ValidateSigned(); err != nil {
+		return Response{}, err
+	}
+	params := c.uploadParams(fileName, fileSize, signatureRandom, opts)
+	params["audioMode"] = "urlLink"
+	params["audioUrl"] = audioURL
+	signature := auth.HMACSHA1(params, c.Credentials.APISecret)
+	endpoint := strings.TrimRight(c.endpoint(), "/") + "/v2/upload?" + auth.Query(params)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, http.NoBody)
+	if err != nil {
+		return Response{}, fmt.Errorf("create IFASR URL upload request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	req.Header.Set("signature", signature)
+	return c.do(req)
+}
+
+func (c *Client) uploadParams(fileName string, fileSize int64, signatureRandom string, opts Options) map[string]string {
+	params := make(map[string]string, len(opts.Extra)+20)
 	for key, value := range opts.Extra {
 		params[key] = value
 	}
@@ -160,6 +243,9 @@ func (c *Client) Upload(ctx context.Context, audio io.Reader, fileName string, f
 	}
 	if opts.Domain != "" {
 		params["pd"] = opts.Domain
+	}
+	if opts.TrackMode != 0 {
+		params["trackMode"] = strconv.Itoa(opts.TrackMode)
 	}
 	if opts.CallbackURL != "" {
 		params["callbackUrl"] = opts.CallbackURL
@@ -188,16 +274,30 @@ func (c *Client) Upload(ctx context.Context, audio io.Reader, fileName string, f
 	if opts.Analysis {
 		params["analysis"] = "1"
 	}
-	signature := auth.HMACSHA1(params, c.Credentials.APISecret)
-	endpoint := strings.TrimRight(c.endpoint(), "/") + "/v2/upload?" + auth.Query(params)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, audio)
-	if err != nil {
-		return Response{}, fmt.Errorf("create IFASR upload request: %w", err)
+	return params
+}
+
+func normalizeOptions(opts *Options) error {
+	if opts.Language == "" {
+		opts.Language = "autodialect"
 	}
-	req.ContentLength = fileSize
-	req.Header.Set("Content-Type", "application/octet-stream")
-	req.Header.Set("signature", signature)
-	return c.do(req)
+	if opts.ResultType == "" {
+		opts.ResultType = "transfer"
+	}
+	if opts.PollInterval == 0 {
+		opts.PollInterval = 2 * time.Second
+	}
+	if opts.MaxWait == 0 {
+		opts.MaxWait = 30 * time.Minute
+	}
+	return validateOptions(*opts)
+}
+
+func signatureRandom(configured string) (string, error) {
+	if configured != "" {
+		return configured, nil
+	}
+	return randomString(16)
 }
 
 func validateOptions(opts Options) error {
@@ -210,14 +310,42 @@ func validateOptions(opts Options) error {
 	if opts.RoleNum < 0 || opts.RoleNum > 10 {
 		return fmt.Errorf("IFASR role_num must be between 0 and 10")
 	}
+	if opts.RoleNum != 0 && opts.RoleType == 0 {
+		return fmt.Errorf("IFASR role_num requires role_type 1 or 3")
+	}
 	if opts.FeatureIDs != "" && opts.RoleType != 3 {
 		return fmt.Errorf("IFASR feature_ids require role_type=3")
 	}
 	if opts.RoleType == 3 && opts.FeatureIDs == "" {
 		return fmt.Errorf("IFASR role_type=3 requires feature_ids")
 	}
-	if len(strings.Split(strings.Trim(opts.FeatureIDs, ","), ",")) > 64 {
-		return fmt.Errorf("IFASR supports at most 64 feature_ids")
+	if opts.FeatureIDs != "" {
+		featureIDs := strings.Split(opts.FeatureIDs, ",")
+		if len(featureIDs) > 64 {
+			return fmt.Errorf("IFASR supports at most 64 feature_ids")
+		}
+		for _, featureID := range featureIDs {
+			if strings.TrimSpace(featureID) == "" {
+				return fmt.Errorf("IFASR feature_ids must not contain empty values")
+			}
+		}
+	}
+	if opts.TrackMode != 0 && opts.TrackMode != 1 && opts.TrackMode != 2 {
+		return fmt.Errorf("IFASR track_mode must be 1 (mixed) or 2 (stereo tracks)")
+	}
+	if opts.TrackMode == 2 && opts.RoleType != 0 {
+		return fmt.Errorf("IFASR track_mode=2 cannot be combined with role_type")
+	}
+	if opts.TrackMode == 2 && opts.Analysis {
+		return fmt.Errorf("IFASR language analysis is unavailable with track_mode=2")
+	}
+	if opts.Domain != "" {
+		if _, ok := supportedDomains[opts.Domain]; !ok {
+			return fmt.Errorf("unsupported IFASR domain %q", opts.Domain)
+		}
+	}
+	if opts.Analysis && opts.Language != "autominor" {
+		return fmt.Errorf("IFASR language analysis requires language=autominor")
 	}
 	if opts.VADMode != 0 && opts.VADMode != 1 && opts.VADMode != 2 {
 		return fmt.Errorf("IFASR VAD mode must be 1 (far field) or 2 (near field)")
@@ -239,6 +367,25 @@ func validateOptions(opts Options) error {
 	}
 	if opts.ResultType != "" && opts.ResultType != "transfer" && opts.ResultType != "analysis" && opts.ResultType != "transfer,analysis" {
 		return fmt.Errorf("IFASR result_type must be transfer, analysis, or transfer,analysis")
+	}
+	for key := range opts.Extra {
+		if replacement, legacy := legacyLFASRParameters[key]; legacy {
+			return fmt.Errorf("legacy lfasr parameter %s is unsupported by Ifasr_llm; %s", key, replacement)
+		}
+		if _, managed := managedIFASRParameters[key]; managed {
+			return fmt.Errorf("IFASR parameter %s has a first-class option and cannot be supplied through extra", key)
+		}
+	}
+	return nil
+}
+
+func validateAudioURL(value string) error {
+	if len(value) > 512 {
+		return fmt.Errorf("IFASR audio URL exceeds 512 characters")
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return fmt.Errorf("IFASR audio URL must be an absolute http or https URL")
 	}
 	return nil
 }

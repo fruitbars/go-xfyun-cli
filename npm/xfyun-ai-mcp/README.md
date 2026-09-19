@@ -30,9 +30,13 @@ The optional media helper is passed to the native server automatically. TTS text
 
 Use IFASR for completed `mp3`, `wav`, `pcm`, `opus`, `flac`, `ogg`, or `speex` recordings. Submit a local path with `xfyun_ifasr_submit`, then preserve both `order_id` and `signature_random` and pass them to `xfyun_ifasr_result`. A split submission returns `parts`; preserve every part and pass the ordered references as `orders` so the result tool can merge them.
 
+The submit tool accepts either local `input_path`, or `audio_url` together with `file_name` and `file_size_bytes` for XFYun `urlLink` mode. Oversized local files are split automatically; remote URLs must already fit one 5-hour/500-MiB order. `track_mode=2` enables stereo channel separation and cannot be combined with speaker-role separation or language analysis.
+
 Status `0` means created, `3` processing, `4` complete, and `-1` failed. Use `wait=false` for one status check when the MCP host has a short timeout. For batches, save each order reference immediately after submission so an interrupted run can resume without a duplicate upload.
 
-The default language mode is `autodialect` (Chinese, English, and dialects); `autominor` enables multilingual recognition when that capability is intended. The client accepts XFYun's observed `json_1best` variants whether the nested JSON is returned as a string or an object.
+Set `include_raw=true` when speaker IDs, word timing, stereo `label.rl_track`, or other detailed fields are needed. `raw_result` contains `orderResult`; `raw_response` preserves the complete service response, including reserved future result fields.
+
+The default language mode is `autodialect` (Chinese, English, and dialects); `autominor` enables multilingual recognition when that capability is intended. Domain values are validated against XFYun's complete list. Legacy lfasr clustering parameters such as `eng_max_clusters` and `eng_min_clusters` are rejected; use `role_type` and `role_num`. The client accepts XFYun's observed `json_1best` variants whether the nested JSON is returned as a string or an object.
 
 Common setup errors:
 

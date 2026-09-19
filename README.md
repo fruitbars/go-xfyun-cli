@@ -153,6 +153,8 @@ xfyun rtasr --input speech.pcm --punctuation=false
 ```bash
 xfyun ifasr --input meeting.mp3
 xfyun ifasr --input meeting.mp3 --no-wait > order.json
+xfyun ifasr --input stereo.wav --track-mode 2 --raw
+xfyun ifasr --audio-url 'https://media.example/meeting.wav' --file-name meeting.wav --file-size-bytes 12345678
 xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd...' --no-wait
 ```
 
@@ -160,12 +162,14 @@ xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd...' --no-wait
 
 - `--role-type 1` 通用角色分离；`--role-type 3 --feature-ids ...` 声纹分离
 - `--role-num 0..10`
+- `--track-mode 1|2` 不分轨或双声道分轨；`2` 与角色分离、语种分析互斥
+- `--domain court|finance|medical|tech|sport|edu|isp|gov|game|ecom|mil|com|life|ent|culture|car`
 - `--smooth=true|false`、`--colloquial=true|false`
 - `--vad-mode 1|2`、`--cantonese-script 0|1`
 - `--callback-url https://...`
 - `--language-analysis --result-type transfer,analysis --raw`
 
-普通提交后必须同时保存 `order_id` 与 `signature_random`；自动切片时保存返回的 `parts` 数组，并原样传给结果查询的 `orders`。状态 `0` 为已创建、`3` 为处理中、`4` 为完成、`-1` 为失败。客户端当前只实现文件流上传，没有实现文档中语义不够明确的 `urlLink` 模式。
+普通提交后必须同时保存 `order_id` 与 `signature_random`；自动切片时保存返回的 `parts` 数组，并原样传给结果查询的 `orders`。状态 `0` 为已创建、`3` 为处理中、`4` 为完成、`-1` 为失败。本地 `fileStream` 支持超限自动切片；外链 `urlLink` 需要同时提供 URL、文件名和字节数，且必须保持在单任务限制内。
 
 凭证字段映射、MCP/CLI 完整流程、批量续跑策略、结果字段和 `000002`/`100020` 等错误排查见 [IFASR 使用指南](docs/ifasr.md)。
 

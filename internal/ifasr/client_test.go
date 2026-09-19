@@ -3,6 +3,7 @@ package ifasr
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -79,6 +80,22 @@ func TestWaitParsesCompletedResponseWithObjectLattice(t *testing.T) {
 		if got := r.URL.Query().Get("signatureRandom"); got != "test-random" {
 			t.Fatalf("signatureRandom = %q", got)
 		}
+		if got := r.URL.Query().Get("accessKeyId"); got != "key" {
+			t.Fatalf("accessKeyId = %q", got)
+		}
+		if got := r.URL.Query().Get("resultType"); got != "transfer" {
+			t.Fatalf("resultType = %q", got)
+		}
+		if r.URL.Query().Get("dateTime") == "" {
+			t.Fatal("dateTime is missing")
+		}
+		if r.URL.Query().Has("appId") {
+			t.Fatal("getResult must not send undocumented appId")
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil || string(body) != "{}" {
+			t.Fatalf("body = %q, error = %v", body, err)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(Response{
 			Code: "000000",
@@ -105,6 +122,80 @@ func TestWaitParsesCompletedResponseWithObjectLattice(t *testing.T) {
 	}
 }
 
+func TestTranscribeURLSendsDocumentedURLParameters(t *testing.T) {
+	smooth, colloquial := false, true
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/upload" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read body: %v", err)
+		}
+		if len(body) != 0 {
+			t.Errorf("URL upload body has %d bytes", len(body))
+		}
+		query := r.URL.Query()
+		want := map[string]string{
+			"audioMode": "urlLink", "audioUrl": "https://media.example/meeting.wav?token=a+b",
+			"fileName": "meeting.wav", "fileSize": "1234", "duration": "5678",
+			"durationCheckDisable": "false", "language": "autodialect", "pd": "sport",
+			"trackMode": "2", "eng_smoothproc": "false", "eng_colloqproc": "true",
+		}
+		for key, value := range want {
+			if got := query.Get(key); got != value {
+				t.Errorf("%s = %q, want %q", key, got, value)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":"000000","descInfo":"success","content":{"orderId":"url-order"}}`))
+	}))
+	defer server.Close()
+
+	client := Client{
+		Credentials: config.Credentials{AppID: "app", APIKey: "key", APISecret: "secret"},
+		Endpoint:    server.URL,
+	}
+	result, err := client.TranscribeURL(context.Background(), "https://media.example/meeting.wav?token=a+b", "meeting.wav", 1234, Options{
+		DurationMS: 5678, Domain: "sport", TrackMode: 2,
+		Smooth: &smooth, Colloquial: &colloquial, NoWait: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OrderID != "url-order" || len(result.SignatureRand) != 16 {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestUploadParamsMapsEverySupportedBusinessOption(t *testing.T) {
+	smooth, colloquial, cantonese := true, true, 0
+	client := Client{Credentials: config.Credentials{AppID: "app", APIKey: "key", APISecret: "secret"}}
+	params := client.uploadParams("meeting.wav", 1234, "random", Options{
+		Language: "autominor", DurationMS: 5678, Domain: "car", TrackMode: 1,
+		CallbackURL: "https://callback.example/result", RoleType: 3, RoleNum: 2,
+		FeatureIDs: "voice-1,voice-2", Smooth: &smooth, Colloquial: &colloquial,
+		VADMode: 2, CantoneseScript: &cantonese, Analysis: true,
+	})
+	want := map[string]string{
+		"appId": "app", "accessKeyId": "key", "signatureRandom": "random",
+		"fileName": "meeting.wav", "fileSize": "1234", "duration": "5678",
+		"durationCheckDisable": "false", "language": "autominor", "pd": "car",
+		"trackMode": "1", "callbackUrl": "https://callback.example/result",
+		"roleType": "3", "roleNum": "2", "featureIds": "voice-1,voice-2",
+		"eng_smoothproc": "true", "eng_colloqproc": "true", "eng_vad_mdn": "2",
+		"eng_rlang": "0", "analysis": "1",
+	}
+	for key, value := range want {
+		if got := params[key]; got != value {
+			t.Errorf("%s = %q, want %q", key, got, value)
+		}
+	}
+	if params["dateTime"] == "" {
+		t.Fatal("dateTime was not generated")
+	}
+}
+
 func TestCodeAcceptsStringAndNumber(t *testing.T) {
 	for _, input := range []string{`{"code":"000000"}`, `{"code":0}`} {
 		var response Response
@@ -113,6 +204,23 @@ func TestCodeAcceptsStringAndNumber(t *testing.T) {
 		}
 		if response.Code != "000000" && response.Code != "0" {
 			t.Fatalf("unexpected code %q", response.Code)
+		}
+	}
+}
+
+func TestResponsePreservesReservedResultFields(t *testing.T) {
+	input := `{"code":"000000","content":{"transResult":[{"segId":"1","dst":"translated"}],"predictResult":{"keywords":[{"word":"test"}]}}}`
+	var response Response
+	if err := json.Unmarshal([]byte(input), &response); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(response)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{`"transResult"`, `"predictResult"`, `"translated"`, `"keywords"`} {
+		if !strings.Contains(string(encoded), field) {
+			t.Fatalf("encoded response is missing %s: %s", field, encoded)
 		}
 	}
 }
@@ -148,5 +256,74 @@ func TestValidateAdvancedOptions(t *testing.T) {
 	invalid.ResultType = "raw"
 	if err := validateOptions(invalid); err == nil {
 		t.Fatal("expected result type error")
+	}
+	invalid = valid
+	invalid.Language = "autodialect"
+	if err := validateOptions(invalid); err == nil {
+		t.Fatal("expected language analysis mode error")
+	}
+	invalid = Options{TrackMode: 2, RoleType: 1}
+	if err := validateOptions(invalid); err == nil {
+		t.Fatal("expected track and role conflict")
+	}
+	invalid = Options{TrackMode: 2, Analysis: true, Language: "autominor"}
+	if err := validateOptions(invalid); err == nil {
+		t.Fatal("expected track and analysis conflict")
+	}
+	invalid = Options{Domain: "unknown"}
+	if err := validateOptions(invalid); err == nil {
+		t.Fatal("expected unsupported domain error")
+	}
+	invalid = Options{Extra: map[string]string{"eng_max_clusters": "2"}}
+	if err := validateOptions(invalid); err == nil || !strings.Contains(err.Error(), "use roleNum") {
+		t.Fatalf("expected legacy parameter migration error, got %v", err)
+	}
+	invalid = Options{RoleNum: 2}
+	if err := validateOptions(invalid); err == nil {
+		t.Fatal("expected role_num dependency error")
+	}
+}
+
+func TestValidateEveryDocumentedDomain(t *testing.T) {
+	for _, domain := range []string{
+		"court", "finance", "medical", "tech", "sport", "edu", "isp", "gov",
+		"game", "ecom", "mil", "com", "life", "ent", "culture", "car",
+	} {
+		if err := validateOptions(Options{Domain: domain}); err != nil {
+			t.Errorf("domain %q: %v", domain, err)
+		}
+	}
+}
+
+func TestRejectsEveryLegacyLFASRParameter(t *testing.T) {
+	for parameter := range legacyLFASRParameters {
+		err := validateOptions(Options{Extra: map[string]string{parameter: "1"}})
+		if err == nil || !strings.Contains(err.Error(), "legacy lfasr parameter") {
+			t.Errorf("parameter %q error = %v", parameter, err)
+		}
+	}
+}
+
+func TestRejectsManagedParametersInExtra(t *testing.T) {
+	for _, parameter := range []string{"appId", "audioMode", "audioUrl", "pd", "trackMode", "analysis"} {
+		err := validateOptions(Options{Extra: map[string]string{parameter: "value"}})
+		if err == nil || !strings.Contains(err.Error(), "first-class option") {
+			t.Errorf("parameter %q error = %v", parameter, err)
+		}
+	}
+}
+
+func TestValidateAudioURL(t *testing.T) {
+	if err := validateAudioURL("https://media.example/meeting.wav?token=abc"); err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"", "ftp://media.example/meeting.wav", "https:///meeting.wav"} {
+		if err := validateAudioURL(value); err == nil {
+			t.Errorf("validateAudioURL(%q) succeeded", value)
+		}
+	}
+	tooLong := "https://media.example/" + strings.Repeat("a", 512)
+	if err := validateAudioURL(tooLong); err == nil {
+		t.Fatal("expected long audio URL error")
 	}
 }
