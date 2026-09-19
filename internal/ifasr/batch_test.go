@@ -2,10 +2,15 @@ package ifasr
 
 import (
 	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"github.com/fruitbars/go-xfyun-cli/internal/config"
 )
 
 func TestNeedsSplitAtEitherLimit(t *testing.T) {
@@ -38,6 +43,33 @@ func TestParseFFmpegDuration(t *testing.T) {
 	want := int64((5*60*60+12*60+3)*1000 + 450)
 	if got != want {
 		t.Fatalf("duration = %d, want %d", got, want)
+	}
+}
+
+func TestTranscribeFileClosesInputExactlyOnce(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/upload" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"code":"000000","descInfo":"success","content":{"orderId":"test-order"}}`)
+	}))
+	defer server.Close()
+
+	input := filepath.Join(t.TempDir(), "input.wav")
+	if err := os.WriteFile(input, []byte("test audio"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	client := Client{
+		Credentials: config.Credentials{AppID: "app", APIKey: "key", APISecret: "secret"},
+		Endpoint:    server.URL,
+	}
+	result, err := client.TranscribeFile(context.Background(), input, Options{DurationMS: 1000, NoWait: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Parts) != 1 || result.Parts[0].Result.OrderID != "test-order" {
+		t.Fatalf("result = %+v", result)
 	}
 }
 

@@ -377,12 +377,8 @@ func ExtractTranscripts(orderResult string) (string, string, error) {
 		return "", "", nil
 	}
 	var outer struct {
-		Lattice []struct {
-			Best string `json:"json_1best"`
-		} `json:"lattice"`
-		Lattice2 []struct {
-			Best string `json:"json_1best"`
-		} `json:"lattice2"`
+		Lattice  []latticeItem `json:"lattice"`
+		Lattice2 []latticeItem `json:"lattice2"`
 	}
 	if err := json.Unmarshal([]byte(orderResult), &outer); err != nil {
 		return "", "", fmt.Errorf("decode IFASR order result: %w", err)
@@ -398,11 +394,27 @@ func ExtractTranscripts(orderResult string) (string, string, error) {
 	return processed, original, nil
 }
 
-func extractLattice(latticeItems []struct {
-	Best string `json:"json_1best"`
-}) (string, error) {
+type latticeItem struct {
+	// The service returns json_1best inconsistently: older responses encode the
+	// nested JSON as a string, while newer lattice2 responses may embed it as an
+	// object. Keep the raw representation and accept both forms below.
+	Best json.RawMessage `json:"json_1best"`
+}
+
+func extractLattice(latticeItems []latticeItem) (string, error) {
 	var transcript strings.Builder
 	for _, lattice := range latticeItems {
+		bestJSON := bytes.TrimSpace(lattice.Best)
+		if len(bestJSON) == 0 || bytes.Equal(bestJSON, []byte("null")) {
+			continue
+		}
+		if bestJSON[0] == '"' {
+			var encoded string
+			if err := json.Unmarshal(bestJSON, &encoded); err != nil {
+				return "", fmt.Errorf("decode IFASR segment string: %w", err)
+			}
+			bestJSON = []byte(encoded)
+		}
 		var best struct {
 			ST struct {
 				RT []struct {
@@ -414,7 +426,7 @@ func extractLattice(latticeItems []struct {
 				} `json:"rt"`
 			} `json:"st"`
 		}
-		if err := json.Unmarshal([]byte(lattice.Best), &best); err != nil {
+		if err := json.Unmarshal(bestJSON, &best); err != nil {
 			return "", fmt.Errorf("decode IFASR segment: %w", err)
 		}
 		for _, rt := range best.ST.RT {

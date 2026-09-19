@@ -3,6 +3,7 @@ package ifasr
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,7 +59,10 @@ func (c *Client) TranscribeFile(ctx context.Context, inputPath string, opts Opti
 		partOptions := opts
 		partOptions.DurationMS = part.durationMS
 		partOptions.NoWait = true
-		result, transcribeErr := c.Transcribe(ctx, file, filepath.Base(part.path), part.size, partOptions)
+		// net/http closes a request body when the request finishes. Hide the
+		// file's Close method so this function retains ownership and can report
+		// its own close failure exactly once.
+		result, transcribeErr := c.Transcribe(ctx, io.LimitReader(file, part.size), filepath.Base(part.path), part.size, partOptions)
 		closeErr := file.Close()
 		if transcribeErr != nil {
 			return batch, fmt.Errorf("transcribe IFASR part %d/%d: %w", index+1, len(parts), transcribeErr)

@@ -17,12 +17,23 @@ func TestExtractTranscript(t *testing.T) {
 }
 
 func TestExtractTranscriptsIncludesOriginalLattice(t *testing.T) {
-	orderResult := `{"lattice":[{"json_1best":"{\"st\":{\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"处理后\"}]}]}]}}"}],"lattice2":[{"json_1best":"{\"st\":{\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"原始\"}]}]}]}}"}]}`
+	orderResult := `{"lattice":[{"json_1best":"{\"st\":{\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"处理后\"}]}]}]}}"}],"lattice2":[{"json_1best":{"st":{"rt":[{"ws":[{"cw":[{"w":"原始"}]}]}]}}}]}`
 	processed, original, err := ExtractTranscripts(orderResult)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if processed != "处理后" || original != "原始" {
+		t.Fatalf("processed=%q original=%q", processed, original)
+	}
+}
+
+func TestExtractTranscriptsAcceptsObjectAndStringSegments(t *testing.T) {
+	orderResult := `{"lattice":[{"json_1best":{"st":{"rt":[{"ws":[{"cw":[{"w":"对象"}]}]}]}}},{"json_1best":"{\"st\":{\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"字符串\"}]}]}]}}"}]}`
+	processed, original, err := ExtractTranscripts(orderResult)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if processed != "对象字符串" || original != "" {
 		t.Fatalf("processed=%q original=%q", processed, original)
 	}
 }
