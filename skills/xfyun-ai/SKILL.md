@@ -12,7 +12,7 @@ Use the `xfyun-ai` MCP tools when available. Fall back to the `xfyun` CLI only w
 - Use `xfyun_ocr` for a local document image or PDF. It converts decodable raster formats and streams the full PDF pipeline one page at a time. A multi-page call returns an NDJSON `output_path`; read it incrementally and do not load the entire file into context.
 - Use `xfyun_tts` for speech synthesis. Require an explicit output path. Set `force=true` only when the user clearly authorized replacing that exact file.
 - Use `xfyun_rtasr` for PCM, Opus, or Speex input that should be streamed at real-time pacing. Its default is 16 kHz, 16-bit, mono PCM.
-- Use `xfyun_ifasr_submit` for ordinary or long recording files. Preserve both `order_id` and `signature_random`, then use `xfyun_ifasr_result` to query or wait for completion.
+- Use `xfyun_ifasr_submit` for ordinary or long recording files. Preserve `order_id` and `signature_random` for a normal response. When `split=true`, preserve every reference in `parts` and pass them as `orders` to `xfyun_ifasr_result`, which merges the transcripts.
 
 Load only the parameter reference for the selected capability:
 

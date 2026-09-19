@@ -1,6 +1,6 @@
 {
   "name": "@fruitbars/xfyun-ai-mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Cross-platform stdio MCP launcher for XFYun AI capabilities",
   "repository": {
     "type": "git",
@@ -20,11 +20,12 @@
     "test": "node --test"
   },
   "optionalDependencies": {
-    "@fruitbars/xfyun-ai-mcp-darwin-arm64": "0.3.0",
-    "@fruitbars/xfyun-ai-mcp-darwin-x64": "0.3.0",
-    "@fruitbars/xfyun-ai-mcp-linux-arm64": "0.3.0",
-    "@fruitbars/xfyun-ai-mcp-linux-x64": "0.3.0",
-    "@fruitbars/xfyun-ai-mcp-win32-arm64": "0.3.0",
-    "@fruitbars/xfyun-ai-mcp-win32-x64": "0.3.0"
+    "@ffmpeg-installer/ffmpeg": "1.1.0",
+    "@fruitbars/xfyun-ai-mcp-darwin-arm64": "0.4.0",
+    "@fruitbars/xfyun-ai-mcp-darwin-x64": "0.4.0",
+    "@fruitbars/xfyun-ai-mcp-linux-arm64": "0.4.0",
+    "@fruitbars/xfyun-ai-mcp-linux-x64": "0.4.0",
+    "@fruitbars/xfyun-ai-mcp-win32-arm64": "0.4.0",
+    "@fruitbars/xfyun-ai-mcp-win32-x64": "0.4.0"
   }
 }

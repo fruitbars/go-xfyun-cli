@@ -95,7 +95,7 @@ func (c *Client) Transcribe(ctx context.Context, audio io.Reader, fileName strin
 	if fileSize <= 0 {
 		return result, fmt.Errorf("audio file is empty")
 	}
-	if fileSize > 500*1024*1024 {
+	if fileSize > MaxAudioBytes {
 		return result, fmt.Errorf("audio file is %d bytes; API limit is 500 MiB", fileSize)
 	}
 	if err := validateFileName(fileName); err != nil {
@@ -234,7 +234,7 @@ func validateOptions(opts Options) error {
 			return fmt.Errorf("IFASR callback URL must be an absolute http or https URL")
 		}
 	}
-	if opts.DurationMS < 0 || opts.DurationMS > 5*60*60*1000 {
+	if opts.DurationMS < 0 || opts.DurationMS > MaxAudioDurationMS {
 		return fmt.Errorf("IFASR duration must be between 0 and 18000000 milliseconds")
 	}
 	if opts.ResultType != "" && opts.ResultType != "transfer" && opts.ResultType != "analysis" && opts.ResultType != "transfer,analysis" {

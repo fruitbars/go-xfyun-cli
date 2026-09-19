@@ -3,10 +3,12 @@
 连接器要求 WorkBuddy 5.0.0 或更高版本，并通过 Node.js 20 运行：
 
 ```bash
-npx -y @fruitbars/xfyun-ai-mcp@0.3.0
+npx -y @fruitbars/xfyun-ai-mcp@0.4.0
 ```
 
 npm 启动器会按当前系统选择 Windows、macOS 或 Linux 的 x64/arm64 原生包。只有在主包和六个平台包发布到 npm 后，市场安装用户才能直接运行。
+
+启动器还会提供媒体切分引擎。TTS 超过单会话 64 KiB 时自动分段并生成一个输出文件；IFASR 超过 5 小时或 500 MiB 时自动无损切片、提交多个任务，并由结果工具按顺序合并文本，无需用户预处理。
 
 连接表单收集同一讯飞应用的三元组，并以环境变量注入本地 stdio MCP 进程：
 

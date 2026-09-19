@@ -9,14 +9,18 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
-	"github.com/gorilla/websocket"
 	"github.com/fruitbars/go-xfyun-cli/internal/auth"
 	"github.com/fruitbars/go-xfyun-cli/internal/config"
 	"github.com/fruitbars/go-xfyun-cli/internal/xfyun"
+	"github.com/gorilla/websocket"
 )
 
-const Endpoint = "wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6"
+const (
+	Endpoint     = "wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6"
+	MaxTextBytes = 64 * 1024
+)
 
 type Options struct {
 	Voice             string
@@ -38,11 +42,13 @@ type Options struct {
 }
 
 type Metadata struct {
-	SID           string `json:"sid"`
-	Encoding      string `json:"encoding"`
-	SampleRate    int    `json:"sample_rate"`
-	Bytes         int64  `json:"bytes"`
-	Pronunciation string `json:"pronunciation,omitempty"`
+	SID           string   `json:"sid"`
+	SIDs          []string `json:"sids,omitempty"`
+	Segments      int      `json:"segments"`
+	Encoding      string   `json:"encoding"`
+	SampleRate    int      `json:"sample_rate"`
+	Bytes         int64    `json:"bytes"`
+	Pronunciation string   `json:"pronunciation,omitempty"`
 }
 
 type Client struct {
@@ -81,10 +87,6 @@ func (c *Client) Synthesize(ctx context.Context, text string, output io.Writer, 
 	if text == "" {
 		return metadata, fmt.Errorf("text is empty")
 	}
-	if len([]byte(text)) > 64*1024 {
-		return metadata, fmt.Errorf("text is %d bytes; streaming-session text limit is 64 KiB", len([]byte(text)))
-	}
-	encodedText := base64.StdEncoding.EncodeToString([]byte(text))
 	if opts.Voice == "" {
 		opts.Voice = "x5_lingxiaoxuan_flow"
 	}
@@ -100,6 +102,32 @@ func (c *Client) Synthesize(ctx context.Context, text string, output io.Writer, 
 	if err := validateOptions(opts); err != nil {
 		return metadata, err
 	}
+	segments := SplitText(text, MaxTextBytes)
+	metadata.Segments = len(segments)
+	pronunciations := make([]string, 0, len(segments))
+	for index, segment := range segments {
+		part, err := c.synthesizeSegment(ctx, segment, output, opts)
+		if err != nil {
+			return metadata, fmt.Errorf("TTS segment %d/%d: %w", index+1, len(segments), err)
+		}
+		if metadata.SID == "" {
+			metadata.SID = part.SID
+		}
+		metadata.SIDs = append(metadata.SIDs, part.SID)
+		metadata.Encoding = part.Encoding
+		metadata.SampleRate = part.SampleRate
+		metadata.Bytes += part.Bytes
+		if part.Pronunciation != "" {
+			pronunciations = append(pronunciations, part.Pronunciation)
+		}
+	}
+	metadata.Pronunciation = strings.Join(pronunciations, "\n")
+	return metadata, nil
+}
+
+func (c *Client) synthesizeSegment(ctx context.Context, text string, output io.Writer, opts Options) (Metadata, error) {
+	var metadata Metadata
+	encodedText := base64.StdEncoding.EncodeToString([]byte(text))
 
 	endpoint := c.Endpoint
 	if endpoint == "" {
@@ -198,6 +226,54 @@ func (c *Client) Synthesize(ctx context.Context, text string, output io.Writer, 
 			return metadata, nil
 		}
 	}
+}
+
+// SplitText keeps every segment within the service byte limit and prefers
+// sentence or line boundaries without changing the original text.
+func SplitText(text string, maxBytes int) []string {
+	if text == "" || maxBytes <= 0 {
+		return nil
+	}
+	segments := make([]string, 0, len(text)/maxBytes+1)
+	for start := 0; start < len(text); {
+		if len(text)-start <= maxBytes {
+			segments = append(segments, text[start:])
+			break
+		}
+		limit := start + maxBytes
+		for limit > start && !utf8.RuneStart(text[limit]) {
+			limit--
+		}
+		if limit == start {
+			_, size := utf8.DecodeRuneInString(text[start:])
+			limit = start + size
+		}
+		cut := preferredTextBoundary(text, start, limit)
+		if cut == start {
+			cut = limit
+		}
+		segments = append(segments, text[start:cut])
+		start = cut
+	}
+	return segments
+}
+
+func preferredTextBoundary(text string, start, limit int) int {
+	lastSentence := start
+	lastSoft := start
+	for offset, r := range text[start:limit] {
+		end := start + offset + utf8.RuneLen(r)
+		switch r {
+		case '\n', '\r', '。', '！', '？', '!', '?', ';', '；':
+			lastSentence = end
+		case ',', '，', '、', ' ', '\t':
+			lastSoft = end
+		}
+	}
+	if lastSentence > start {
+		return lastSentence
+	}
+	return lastSoft
 }
 
 func validateOptions(opts Options) error {

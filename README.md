@@ -15,7 +15,7 @@
 ### MCP：npx（推荐）
 
 ```bash
-npx -y @fruitbars/xfyun-ai-mcp@0.3.0 --version
+npx -y @fruitbars/xfyun-ai-mcp@0.4.0 --version
 ```
 
 主 npm 包会自动选择 Windows、macOS、Linux 的 x64/arm64 原生包，不在运行时从 GitHub 下载二进制。
@@ -86,7 +86,7 @@ xfyun tts --text-file article.txt --voice x5_lingxiaoxuan_flow --output article.
 xfyun tts --text '测试 PCM' --encoding raw --output speech.pcm
 ```
 
-单次流式会话文本上限为 64 KiB。输出路径必须显式指定，已有文件默认不覆盖；仅在明确需要时使用 `--force`。常用参数：
+单次流式会话文本上限为 64 KiB；工具会按句子和 UTF-8 安全边界自动分段调用，并把音频按顺序写入同一个输出文件。输出路径必须显式指定，已有文件默认不覆盖；仅在明确需要时使用 `--force`。常用参数：
 
 - `--speed/--volume/--pitch 0..100`
 - `--oral-level low|mid|high`、`--spark-assist 0|1`
@@ -120,7 +120,7 @@ xfyun ifasr --input meeting.mp3 --no-wait > order.json
 xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd...' --no-wait
 ```
 
-支持 `mp3/wav/pcm/opus/flac/ogg/speex`，最长 5 小时、最大 500 MiB。高级参数包括：
+支持 `mp3/wav/pcm/opus/flac/ogg/speex`。单个讯飞任务最长 5 小时、最大 500 MiB；超过任一限制时，工具自动探测媒体、无损切片并提交多个任务，完成后按原顺序合并文本。npm 启动器会提供切片引擎，无需用户另行预处理。高级参数包括：
 
 - `--role-type 1` 通用角色分离；`--role-type 3 --feature-ids ...` 声纹分离
 - `--role-num 0..10`
@@ -129,7 +129,7 @@ xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd...' --no-wait
 - `--callback-url https://...`
 - `--language-analysis --result-type transfer,analysis --raw`
 
-提交后必须同时保存 `order_id` 与 `signature_random`。状态 `0` 为已创建、`3` 为处理中、`4` 为完成、`-1` 为失败。客户端当前只实现文件流上传，没有实现文档中语义不够明确的 `urlLink` 模式。
+普通提交后必须同时保存 `order_id` 与 `signature_random`；自动切片时保存返回的 `parts` 数组，并原样传给结果查询的 `orders`。状态 `0` 为已创建、`3` 为处理中、`4` 为完成、`-1` 为失败。客户端当前只实现文件流上传，没有实现文档中语义不够明确的 `urlLink` 模式。
 
 ## MCP Server
 
@@ -151,7 +151,7 @@ IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先
     "xfyun-ai": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.3.0"]
+      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.4.0"]
     }
   }
 }

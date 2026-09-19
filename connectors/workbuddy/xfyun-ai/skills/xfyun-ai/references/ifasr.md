@@ -1,9 +1,9 @@
 # IFASR 参数
 
-`xfyun_ifasr_submit` 支持 `mp3/wav/pcm/opus/flac/ogg/speex`，最长 5 小时、最大 500 MiB。本客户端只实现文件流上传，尚未实现 `urlLink`。
+`xfyun_ifasr_submit` 支持 `mp3/wav/pcm/opus/flac/ogg/speex`。讯飞单任务最长 5 小时、最大 500 MiB；工具会自动探测并无损切分超限音频。普通提交保存 `order_id` 和 `signature_random`；自动切分时把返回的 `parts` 引用作为 `orders` 交给 `xfyun_ifasr_result`，工具会查询全部任务并按原顺序合并文本。本客户端只实现文件流上传，尚未实现 `urlLink`。
 
 - 语种：`autodialect`（默认）或多语种 `autominor`。
-- 已知时长填 `duration_ms`；0 表示关闭服务端时长校验。
+- 已知时长可填 `duration_ms`；0 表示由随包媒体引擎自动探测。
 - 通用角色分离：`role_type=1`，可填 0–10 的 `role_num`；声纹分离：`role_type=3` 并提供最多 64 个 `feature_ids`。
 - 完成回调：`callback_url` 必须是最长 512 字符的绝对 HTTP(S) URL，服务端以 GET 调用。
 - 顺滑文本：`smooth=true`（服务默认）；口语规整：`colloquial=true`。

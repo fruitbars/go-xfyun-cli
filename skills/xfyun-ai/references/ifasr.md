@@ -1,11 +1,11 @@
 # IFASR parameter guide
 
-Use `xfyun_ifasr_submit` for completed recordings, then preserve both `order_id` and `signature_random` for `xfyun_ifasr_result`. Supported file extensions are `mp3`, `wav`, `pcm`, `opus`, `flac`, `ogg`, and `speex`; limits are 5 hours and 500 MiB. This client currently implements `fileStream` upload only, not `urlLink`.
+Use `xfyun_ifasr_submit` for completed recordings. Supported file extensions are `mp3`, `wav`, `pcm`, `opus`, `flac`, `ogg`, and `speex`. Each service order is limited to 5 hours and 500 MiB; the tool automatically probes and losslessly splits larger input. Preserve `order_id` and `signature_random` for a normal submission. For a split submission, pass the returned `parts` references to `xfyun_ifasr_result` as `orders`; it queries every order and merges transcripts in source order. This client implements `fileStream` upload only, not `urlLink`.
 
 ## Submission mapping
 
 - Language: `autodialect` (default) or multilingual `autominor`.
-- Known duration: set `duration_ms`; zero disables the server duration check.
+- Known duration: set `duration_ms`; zero lets the bundled media helper probe it automatically.
 - Domain optimization: use the same `domain` values as RTASR when the user names a supported field.
 - Generic speaker separation: `role_type=1`; optionally set expected `role_num` from 0–10.
 - Voiceprint separation: `role_type=3` plus comma-separated `feature_ids` (maximum 64).

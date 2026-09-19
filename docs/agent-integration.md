@@ -7,10 +7,10 @@
 推荐所有支持本地 stdio MCP 的产品使用固定版本：
 
 ```bash
-npx -y @fruitbars/xfyun-ai-mcp@0.3.0 --version
+npx -y @fruitbars/xfyun-ai-mcp@0.4.0 --version
 ```
 
-需要 Node.js 18 或更高版本（WorkBuddy 连接器声明 Node.js 20）。npm 主包按平台安装原生可选依赖，支持 Windows、macOS、Linux 的 x64/arm64。包尚未发布时，可先从源码构建 `xfyun-ai-mcp`，或设置 `XFYUN_AI_MCP_BINARY` 指向本地二进制测试启动器。
+需要 Node.js 18 或更高版本（WorkBuddy 连接器声明 Node.js 20）。npm 主包按平台安装原生可选依赖，支持 Windows、macOS、Linux 的 x64/arm64，并提供 IFASR 自动切片所需的媒体引擎。开发中的版本尚未发布时，可先从源码构建 `xfyun-ai-mcp`，或设置 `XFYUN_AI_MCP_BINARY` 指向本地二进制测试启动器。
 
 除 WorkBuddy 的本地凭证表单外，启动 Agent 前设置：
 
@@ -29,7 +29,7 @@ XFYUN_API_SECRET
 ```toml
 [mcp_servers.xfyun-ai]
 command = "npx"
-args = ["-y", "@fruitbars/xfyun-ai-mcp@0.3.0"]
+args = ["-y", "@fruitbars/xfyun-ai-mcp@0.4.0"]
 env_vars = ["XFYUN_APP_ID", "XFYUN_API_KEY", "XFYUN_API_SECRET"]
 startup_timeout_sec = 10
 tool_timeout_sec = 30000
@@ -55,7 +55,7 @@ default_tools_approval_mode = "writes"
 可用 CLI 注册用户级 MCP：
 
 ```bash
-claude mcp add --scope user --transport stdio xfyun-ai -- npx -y @fruitbars/xfyun-ai-mcp@0.3.0
+claude mcp add --scope user --transport stdio xfyun-ai -- npx -y @fruitbars/xfyun-ai-mcp@0.4.0
 claude mcp list
 ```
 
@@ -85,11 +85,11 @@ skills/xfyun-ai/references/*.md
 {
   "type": "stdio",
   "command": "npx",
-  "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.3.0"]
+  "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.4.0"]
 }
 ```
 
-跨平台能力来自 npm 的六个原生可选依赖，不依赖用户预装 Go，也不需要手动把二进制加入 PATH。前提是主包和所有平台包已发布。提交市场前还需确认 `source: "xfyun-ai"` 的全局唯一性，并按 WorkBuddy 开放平台流程打包审核。
+跨平台能力来自 npm 的六个原生可选依赖，不依赖用户预装 Go，也不需要手动把二进制加入 PATH。TTS 超过 64 KiB 时自动按文本边界分段并输出一个文件；IFASR 超过 5 小时或 500 MiB 时自动无损切片，结果工具会汇总全部分片。前提是主包和所有平台包已发布。提交市场前还需确认 `source: "xfyun-ai"` 的全局唯一性，并按 WorkBuddy 开放平台流程打包审核。
 
 连接器为多页 PDF 设置 30 分钟工具超时。PDF 会逐页渲染、压缩、OCR、写出 NDJSON 并释放页面；多页调用返回 `output_path`，不会把所有页面内容积压在 MCP 响应内存中。支持 progress token 时宿主可显示逐页进度。超长文档建议通过 `pages` 分批调用。
 
@@ -103,7 +103,7 @@ Cursor、Cline、Windsurf、Continue、Zed 等只要支持本地 stdio MCP，就
     "xfyun-ai": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.3.0"]
+      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.4.0"]
     }
   }
 }

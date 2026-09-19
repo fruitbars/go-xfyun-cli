@@ -2,14 +2,16 @@ package mcpserver
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/fruitbars/go-xfyun-cli/internal/config"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestServerAdvertisesExpectedTools(t *testing.T) {
@@ -42,6 +44,18 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 	}
 	if len(names) != len(want) {
 		t.Fatalf("tool names = %v, want %v", names, want)
+	}
+	for _, tool := range tools.Tools {
+		if tool.Name != "xfyun_ifasr_result" {
+			continue
+		}
+		schema, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(schema), `"orders"`) {
+			t.Fatalf("IFASR result schema does not expose split orders: %s", schema)
+		}
 	}
 
 	invalid, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "xfyun_ocr", Arguments: map[string]any{}})
@@ -87,5 +101,18 @@ func TestPrepareAtomicOutputRejectsExistingFile(t *testing.T) {
 	}
 	if err := os.Remove(temporaryPath); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAggregateIFASRStatusUsesMostActionableState(t *testing.T) {
+	status := 4
+	for _, next := range []int{0, 4, 3, 4} {
+		status = aggregateIFASRStatus(status, next)
+	}
+	if status != 3 {
+		t.Fatalf("status = %d, want processing", status)
+	}
+	if got := aggregateIFASRStatus(status, -1); got != -1 {
+		t.Fatalf("failed status = %d", got)
 	}
 }

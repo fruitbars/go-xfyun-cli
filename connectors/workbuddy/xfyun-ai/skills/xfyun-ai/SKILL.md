@@ -5,7 +5,7 @@ display_name_en: XFYun AI
 description: 使用讯飞云 AI 完成文档 OCR、语音合成、实时音频转写和录音文件转写。
 description_zh: 使用讯飞云 AI 完成文档 OCR、语音合成、实时音频转写和录音文件转写。
 description_en: Use XFYun AI tools for document OCR, speech synthesis, and audio transcription.
-version: 0.3.0
+version: 0.4.0
 author: fruitbars
 ---
 
@@ -18,7 +18,7 @@ author: fruitbars
 - 文档图片或 PDF 使用 `xfyun_ocr`；不支持的位图格式自动转换，PDF 的渲染、压缩、OCR、结果写出和释放都按页流式执行。多页结果位于返回的 NDJSON `output_path`，不要一次性读入全部内容。
 - 文字转语音使用 `xfyun_tts`。必须指定输出路径；仅当用户明确同意覆盖该文件时设置 `force=true`。
 - PCM、Opus 或 Speex 实时风格音频使用 `xfyun_rtasr`。
-- 已录制的普通或长音频使用 `xfyun_ifasr_submit`；保存返回的 `order_id` 和 `signature_random`，再用 `xfyun_ifasr_result` 查询。
+- 已录制的普通或长音频使用 `xfyun_ifasr_submit`。普通响应保存 `order_id` 和 `signature_random`；`split=true` 时保存 `parts` 中的全部任务引用，并作为 `orders` 交给 `xfyun_ifasr_result` 查询和合并。
 
 仅按当前能力读取对应参数参考：
 

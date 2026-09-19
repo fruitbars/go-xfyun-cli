@@ -7,9 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/fruitbars/go-xfyun-cli/internal/config"
 	"github.com/fruitbars/go-xfyun-cli/internal/ifasr"
 	"github.com/fruitbars/go-xfyun-cli/internal/ocr"
@@ -17,6 +17,7 @@ import (
 	"github.com/fruitbars/go-xfyun-cli/internal/rtasr"
 	"github.com/fruitbars/go-xfyun-cli/internal/tts"
 	"github.com/fruitbars/go-xfyun-cli/internal/version"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type Service struct {
@@ -210,7 +211,7 @@ func addOCRTool(server *mcp.Server, service *Service) {
 }
 
 type TTSInput struct {
-	Text              string `json:"text,omitempty" jsonschema:"UTF-8 text up to 64 KiB. Use either text or text_path."`
+	Text              string `json:"text,omitempty" jsonschema:"UTF-8 text. Input over 64 KiB is split automatically. Use either text or text_path."`
 	TextPath          string `json:"text_path,omitempty" jsonschema:"Local UTF-8 text file. Use either text or text_path."`
 	OutputPath        string `json:"output_path" jsonschema:"Local destination path for generated audio."`
 	Force             bool   `json:"force,omitempty" jsonschema:"Allow replacement of an existing output file after synthesis succeeds."`
@@ -234,12 +235,14 @@ type TTSInput struct {
 }
 
 type TTSOutput struct {
-	OutputPath    string `json:"output_path"`
-	SID           string `json:"sid,omitempty"`
-	Encoding      string `json:"encoding"`
-	SampleRate    int    `json:"sample_rate"`
-	Bytes         int64  `json:"bytes"`
-	Pronunciation string `json:"pronunciation,omitempty"`
+	OutputPath    string   `json:"output_path"`
+	SID           string   `json:"sid,omitempty"`
+	SIDs          []string `json:"sids,omitempty"`
+	Segments      int      `json:"segments"`
+	Encoding      string   `json:"encoding"`
+	SampleRate    int      `json:"sample_rate"`
+	Bytes         int64    `json:"bytes"`
+	Pronunciation string   `json:"pronunciation,omitempty"`
 }
 
 func addTTSTool(server *mcp.Server, service *Service) {
@@ -293,7 +296,8 @@ func addTTSTool(server *mcp.Server, service *Service) {
 				_ = os.Remove(tempPath)
 			}
 		}()
-		requestCtx, cancel := withTimeout(ctx, input.TimeoutSeconds, 300)
+		defaultTimeout := 300 * len(tts.SplitText(text, tts.MaxTextBytes))
+		requestCtx, cancel := withTimeout(ctx, input.TimeoutSeconds, defaultTimeout)
 		defer cancel()
 		client := tts.Client{Credentials: service.credentials}
 		metadata, err := client.Synthesize(requestCtx, text, tempFile, tts.Options{
@@ -316,7 +320,7 @@ func addTTSTool(server *mcp.Server, service *Service) {
 		}
 		committed = true
 		return nil, TTSOutput{
-			OutputPath: absolutePath, SID: metadata.SID, Encoding: metadata.Encoding,
+			OutputPath: absolutePath, SID: metadata.SID, SIDs: metadata.SIDs, Segments: metadata.Segments, Encoding: metadata.Encoding,
 			SampleRate: metadata.SampleRate, Bytes: metadata.Bytes, Pronunciation: metadata.Pronunciation,
 		}, nil
 	})
@@ -383,9 +387,9 @@ func addRTASRTool(server *mcp.Server, service *Service) {
 }
 
 type IFASRSubmitInput struct {
-	InputPath        string            `json:"input_path" jsonschema:"Local mp3, wav, pcm, opus, flac, ogg, or speex audio path."`
+	InputPath        string            `json:"input_path" jsonschema:"Local mp3, wav, pcm, opus, flac, ogg, or speex audio path. Files over 5 hours or 500 MiB are split automatically."`
 	Language         string            `json:"language,omitempty" jsonschema:"autodialect or autominor. Default: autodialect."`
-	DurationMS       int64             `json:"duration_ms,omitempty" jsonschema:"Exact duration in milliseconds. Zero disables duration checking."`
+	DurationMS       int64             `json:"duration_ms,omitempty" jsonschema:"Known duration in milliseconds. Zero lets the tool probe it automatically."`
 	Domain           string            `json:"domain,omitempty" jsonschema:"Domain optimization such as finance or medical."`
 	RoleType         int               `json:"role_type,omitempty" jsonschema:"Speaker separation: 0 off, 1 generic, 3 voiceprint."`
 	RoleNum          int               `json:"role_num,omitempty" jsonschema:"Expected speaker count from 0 to 10."`
@@ -400,8 +404,19 @@ type IFASRSubmitInput struct {
 }
 
 type IFASRSubmitOutput struct {
+	OrderID          string            `json:"order_id,omitempty"`
+	SignatureRandom  string            `json:"signature_random,omitempty"`
+	TaskEstimateTime int64             `json:"task_estimate_time_ms,omitempty"`
+	Split            bool              `json:"split"`
+	Parts            []IFASRSubmitPart `json:"parts,omitempty"`
+}
+
+type IFASRSubmitPart struct {
+	Index            int    `json:"index"`
 	OrderID          string `json:"order_id"`
 	SignatureRandom  string `json:"signature_random"`
+	Size             int64  `json:"size_bytes"`
+	DurationMS       int64  `json:"duration_ms,omitempty"`
 	TaskEstimateTime int64  `json:"task_estimate_time_ms,omitempty"`
 }
 
@@ -409,20 +424,11 @@ func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "xfyun_ifasr_submit",
 		Title:       "Submit file transcription",
-		Description: "Upload a local recording and return identifiers needed to query the asynchronous transcription order.",
+		Description: "Upload a local recording, automatically split it at service limits, and return one or more orders needed to query transcription.",
 		Annotations: annotations(false, false, true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, input IFASRSubmitInput) (*mcp.CallToolResult, IFASRSubmitOutput, error) {
-		file, err := os.Open(input.InputPath)
-		if err != nil {
-			return nil, IFASRSubmitOutput{}, fmt.Errorf("open audio: %w", err)
-		}
-		defer file.Close()
-		info, err := file.Stat()
-		if err != nil {
-			return nil, IFASRSubmitOutput{}, fmt.Errorf("stat audio: %w", err)
-		}
 		client := ifasr.Client{Credentials: service.credentials}
-		result, err := client.Transcribe(ctx, file, filepath.Base(input.InputPath), info.Size(), ifasr.Options{
+		batch, err := client.TranscribeFile(ctx, input.InputPath, ifasr.Options{
 			Language: input.Language, DurationMS: input.DurationMS, Domain: input.Domain,
 			CallbackURL: input.CallbackURL, RoleType: input.RoleType, RoleNum: input.RoleNum, FeatureIDs: input.FeatureIDs,
 			Smooth: input.Smooth, Colloquial: input.Colloquial, VADMode: input.VADMode,
@@ -432,24 +438,55 @@ func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 		if err != nil {
 			return nil, IFASRSubmitOutput{}, err
 		}
-		return nil, IFASRSubmitOutput{
-			OrderID: result.OrderID, SignatureRandom: result.SignatureRand,
-			TaskEstimateTime: result.Response.Content.TaskEstimateTime,
-		}, nil
+		output := IFASRSubmitOutput{Split: batch.Split}
+		for _, part := range batch.Parts {
+			output.Parts = append(output.Parts, IFASRSubmitPart{
+				Index: part.Index, OrderID: part.Result.OrderID, SignatureRandom: part.Result.SignatureRand,
+				Size: part.Size, DurationMS: part.DurationMS,
+				TaskEstimateTime: part.Result.Response.Content.TaskEstimateTime,
+			})
+		}
+		if len(output.Parts) == 1 {
+			output.OrderID = output.Parts[0].OrderID
+			output.SignatureRandom = output.Parts[0].SignatureRandom
+			output.TaskEstimateTime = output.Parts[0].TaskEstimateTime
+			output.Parts = nil
+		}
+		return nil, output, nil
 	})
 }
 
+type IFASROrderRef struct {
+	OrderID         string `json:"order_id"`
+	SignatureRandom string `json:"signature_random"`
+}
+
 type IFASRResultInput struct {
-	OrderID         string `json:"order_id" jsonschema:"Order ID returned by xfyun_ifasr_submit."`
-	SignatureRandom string `json:"signature_random" jsonschema:"Signature random returned by xfyun_ifasr_submit."`
-	ResultType      string `json:"result_type,omitempty" jsonschema:"transfer, analysis, or a comma-separated combination. Default: transfer."`
-	Wait            bool   `json:"wait,omitempty" jsonschema:"Wait and poll until the order finishes."`
-	PollSeconds     int    `json:"poll_seconds,omitempty" jsonschema:"Polling interval in seconds. Default: 2."`
-	MaxWaitSeconds  int    `json:"max_wait_seconds,omitempty" jsonschema:"Maximum wait in seconds. Default: 1800."`
-	IncludeRaw      bool   `json:"include_raw,omitempty" jsonschema:"Include the service orderResult JSON string; use for language analysis or fields not represented by transcript."`
+	OrderID         string          `json:"order_id,omitempty" jsonschema:"Order ID returned for a single-part submission."`
+	SignatureRandom string          `json:"signature_random,omitempty" jsonschema:"Signature random returned for a single-part submission."`
+	Orders          []IFASROrderRef `json:"orders,omitempty" jsonschema:"Ordered references returned in parts for an automatically split submission."`
+	ResultType      string          `json:"result_type,omitempty" jsonschema:"transfer, analysis, or a comma-separated combination. Default: transfer."`
+	Wait            bool            `json:"wait,omitempty" jsonschema:"Wait and poll until the order finishes."`
+	PollSeconds     int             `json:"poll_seconds,omitempty" jsonschema:"Polling interval in seconds. Default: 2."`
+	MaxWaitSeconds  int             `json:"max_wait_seconds,omitempty" jsonschema:"Maximum wait in seconds. Default: 1800."`
+	IncludeRaw      bool            `json:"include_raw,omitempty" jsonschema:"Include the service orderResult JSON string; use for language analysis or fields not represented by transcript."`
 }
 
 type IFASRResultOutput struct {
+	OrderID            string            `json:"order_id,omitempty"`
+	Status             int               `json:"status"`
+	FailType           int               `json:"fail_type,omitempty"`
+	Transcript         string            `json:"transcript,omitempty"`
+	OriginalTranscript string            `json:"original_transcript,omitempty"`
+	RawResult          string            `json:"raw_result,omitempty"`
+	Language           string            `json:"language,omitempty"`
+	OriginalDurationMS int64             `json:"original_duration_ms,omitempty"`
+	Split              bool              `json:"split"`
+	Parts              []IFASRPartResult `json:"parts,omitempty"`
+}
+
+type IFASRPartResult struct {
+	Index              int    `json:"index"`
 	OrderID            string `json:"order_id"`
 	Status             int    `json:"status"`
 	FailType           int    `json:"fail_type,omitempty"`
@@ -464,11 +501,15 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "xfyun_ifasr_result",
 		Title:       "Get file transcription result",
-		Description: "Query once or wait for an asynchronous recording transcription order and return parsed text/status.",
+		Description: "Query once or wait for one or more asynchronous recording transcription orders and merge split transcripts in order.",
 		Annotations: annotations(true, false, true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, input IFASRResultInput) (*mcp.CallToolResult, IFASRResultOutput, error) {
-		if input.OrderID == "" || input.SignatureRandom == "" {
-			return nil, IFASRResultOutput{}, fmt.Errorf("order_id and signature_random are required")
+		hasSingle := input.OrderID != "" || input.SignatureRandom != ""
+		if hasSingle == (len(input.Orders) > 0) {
+			return nil, IFASRResultOutput{}, fmt.Errorf("provide either order_id with signature_random, or orders")
+		}
+		if hasSingle && (input.OrderID == "" || input.SignatureRandom == "") {
+			return nil, IFASRResultOutput{}, fmt.Errorf("order_id and signature_random are both required")
 		}
 		if input.ResultType == "" {
 			input.ResultType = "transfer"
@@ -480,45 +521,93 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 			input.MaxWaitSeconds = 1800
 		}
 		client := ifasr.Client{Credentials: service.credentials}
-		var response ifasr.Response
-		var transcript string
-		var originalTranscript string
-		if input.Wait {
-			result, err := client.Wait(ctx, input.OrderID, input.SignatureRandom, ifasr.Options{
-				ResultType:   input.ResultType,
-				PollInterval: time.Duration(input.PollSeconds) * time.Second,
-				MaxWait:      time.Duration(input.MaxWaitSeconds) * time.Second,
-			})
-			if err != nil {
-				return nil, IFASRResultOutput{}, err
-			}
-			response = result.Response
-			transcript = result.Transcript
-			originalTranscript = result.OriginalTranscript
-		} else {
-			var err error
-			response, err = client.Query(ctx, input.OrderID, input.SignatureRandom, input.ResultType)
-			if err != nil {
-				return nil, IFASRResultOutput{}, err
-			}
-			if response.Content.OrderInfo.Status == 4 {
-				transcript, originalTranscript, err = ifasr.ExtractTranscripts(response.Content.OrderResult)
-				if err != nil {
-					return nil, IFASRResultOutput{}, err
-				}
-			}
+		orders := input.Orders
+		if hasSingle {
+			orders = []IFASROrderRef{{OrderID: input.OrderID, SignatureRandom: input.SignatureRandom}}
 		}
-		info := response.Content.OrderInfo
-		output := IFASRResultOutput{
-			OrderID: input.OrderID, Status: info.Status, FailType: info.FailType,
-			Transcript: transcript, OriginalTranscript: originalTranscript, Language: info.Language,
-			OriginalDurationMS: info.OriginalDuration,
+		output := IFASRResultOutput{Split: len(orders) > 1, Status: 4}
+		var transcripts, originals []string
+		for index, order := range orders {
+			if order.OrderID == "" || order.SignatureRandom == "" {
+				return nil, IFASRResultOutput{}, fmt.Errorf("orders[%d] requires order_id and signature_random", index)
+			}
+			part, err := queryIFASRPart(ctx, &client, order, input)
+			if err != nil {
+				return nil, IFASRResultOutput{}, fmt.Errorf("query IFASR part %d/%d: %w", index+1, len(orders), err)
+			}
+			part.Index = index + 1
+			output.Parts = append(output.Parts, part)
+			output.Status = aggregateIFASRStatus(output.Status, part.Status)
+			if part.Transcript != "" {
+				transcripts = append(transcripts, part.Transcript)
+			}
+			if part.OriginalTranscript != "" {
+				originals = append(originals, part.OriginalTranscript)
+			}
+			output.OriginalDurationMS += part.OriginalDurationMS
 		}
-		if input.IncludeRaw {
-			output.RawResult = response.Content.OrderResult
+		output.Transcript = strings.Join(transcripts, "\n")
+		output.OriginalTranscript = strings.Join(originals, "\n")
+		if len(output.Parts) == 1 {
+			part := output.Parts[0]
+			output.OrderID, output.FailType, output.Language = part.OrderID, part.FailType, part.Language
+			output.RawResult = part.RawResult
+			output.Parts = nil
 		}
 		return nil, output, nil
 	})
+}
+
+func aggregateIFASRStatus(current, next int) int {
+	if current == -1 || next == -1 {
+		return -1
+	}
+	if current == 3 || next == 3 {
+		return 3
+	}
+	if current == 0 || next == 0 {
+		return 0
+	}
+	if next != 4 {
+		return next
+	}
+	return current
+}
+
+func queryIFASRPart(ctx context.Context, client *ifasr.Client, order IFASROrderRef, input IFASRResultInput) (IFASRPartResult, error) {
+	var result ifasr.Result
+	if input.Wait {
+		var err error
+		result, err = client.Wait(ctx, order.OrderID, order.SignatureRandom, ifasr.Options{
+			ResultType: input.ResultType, PollInterval: time.Duration(input.PollSeconds) * time.Second,
+			MaxWait: time.Duration(input.MaxWaitSeconds) * time.Second,
+		})
+		if err != nil {
+			return IFASRPartResult{}, err
+		}
+	} else {
+		response, err := client.Query(ctx, order.OrderID, order.SignatureRandom, input.ResultType)
+		if err != nil {
+			return IFASRPartResult{}, err
+		}
+		result = ifasr.Result{OrderID: order.OrderID, SignatureRand: order.SignatureRandom, Status: response.Content.OrderInfo.Status, Response: response}
+		if result.Status == 4 {
+			result.Transcript, result.OriginalTranscript, err = ifasr.ExtractTranscripts(response.Content.OrderResult)
+			if err != nil {
+				return IFASRPartResult{}, err
+			}
+		}
+	}
+	info := result.Response.Content.OrderInfo
+	part := IFASRPartResult{
+		OrderID: order.OrderID, Status: info.Status, FailType: info.FailType,
+		Transcript: result.Transcript, OriginalTranscript: result.OriginalTranscript,
+		Language: info.Language, OriginalDurationMS: info.OriginalDuration,
+	}
+	if input.IncludeRaw {
+		part.RawResult = result.Response.Content.OrderResult
+	}
+	return part, nil
 }
 
 func annotations(readOnly, destructive, openWorld bool) *mcp.ToolAnnotations {
@@ -556,12 +645,9 @@ func resolveText(text, textPath string) (string, error) {
 		return "", fmt.Errorf("open text file: %w", err)
 	}
 	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, 64*1024+1))
+	data, err := io.ReadAll(file)
 	if err != nil {
 		return "", fmt.Errorf("read text file: %w", err)
-	}
-	if len(data) > 64*1024 {
-		return "", fmt.Errorf("text file exceeds the 64 KiB streaming-session limit")
 	}
 	return string(data), nil
 }

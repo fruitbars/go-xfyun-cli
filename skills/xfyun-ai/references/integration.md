@@ -5,7 +5,7 @@
 The portable MCP entry point is:
 
 ```bash
-npx -y @fruitbars/xfyun-ai-mcp@0.3.0
+npx -y @fruitbars/xfyun-ai-mcp@0.4.0
 ```
 
 It selects the matching Windows, macOS, or Linux x64/arm64 native package. The npm packages must have been published before this command can work. For source development, build `xfyun-ai-mcp` and set `XFYUN_AI_MCP_BINARY` to its absolute path.
@@ -32,7 +32,7 @@ For detailed options read [ocr.md](ocr.md).
 
 ### `xfyun_tts`
 
-Provide exactly one of `text` or `text_path`, plus `output_path`. Useful options: `voice`, `encoding` (`lame` for MP3, `raw` for PCM), `sample_rate`, `speed`, `volume`, `pitch`, and `oral_level`.
+Provide exactly one of `text` or `text_path`, plus `output_path`. Input over the 64 KiB per-session limit is split automatically and still produces one output file. Useful options: `voice`, `encoding` (`lame` for MP3, `raw` for PCM), `sample_rate`, `speed`, `volume`, `pitch`, and `oral_level`.
 
 The server synthesizes into a temporary file and commits it atomically. Existing files are rejected unless `force=true`. For detailed options read [tts.md](tts.md).
 
@@ -44,9 +44,9 @@ For language codes and advanced recognition controls read [rtasr.md](rtasr.md).
 
 ### `xfyun_ifasr_submit`
 
-Required: `input_path`. Supports `mp3`, `wav`, `pcm`, `opus`, `flac`, `ogg`, and `speex`, up to the current platform limit of 5 hours and 500 MiB. A zero `duration_ms` disables duration validation.
+Required: `input_path`. Supports `mp3`, `wav`, `pcm`, `opus`, `flac`, `ogg`, and `speex`. Audio over 5 hours or 500 MiB is automatically probed and losslessly split into multiple service orders. A zero `duration_ms` lets the tool probe duration when its bundled media helper is available.
 
-Persist both returned fields:
+For ordinary input, persist both returned fields:
 
 ```json
 {
@@ -55,11 +55,13 @@ Persist both returned fields:
 }
 ```
 
+For automatically split input, preserve every `order_id` and `signature_random` in the returned `parts` array. Pass those references to `xfyun_ifasr_result` as `orders`; it merges completed transcripts in source order.
+
 For submission, post-processing, speaker, and analysis options read [ifasr.md](ifasr.md).
 
 ### `xfyun_ifasr_result`
 
-Pass the two submit identifiers. Use `wait=false` for a single status check or `wait=true` with `poll_seconds` and `max_wait_seconds` to poll to completion.
+Pass the two submit identifiers, or pass all split references in `orders`. Use `wait=false` for one status check per order or `wait=true` with `poll_seconds` and `max_wait_seconds` to poll and merge all parts.
 
 ## CLI fallback
 

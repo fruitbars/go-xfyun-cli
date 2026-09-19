@@ -3,7 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
-const { targetFor, resolveBinary } = require("../bin/xfyun-ai-mcp.js");
+const { targetFor, resolveBinary, resolveFFmpeg } = require("../bin/xfyun-ai-mcp.js");
 
 test("maps every supported Node platform to the native package", () => {
   assert.deepEqual(targetFor("win32", "x64"), {
@@ -28,4 +28,9 @@ test("rejects unsupported platforms", () => {
 test("accepts an explicit binary override for local development", () => {
   const expected = path.resolve("build", process.platform === "win32" ? "xfyun-ai-mcp.exe" : "xfyun-ai-mcp");
   assert.equal(resolveBinary({ override: expected }), expected);
+});
+
+test("accepts an explicit ffmpeg override", () => {
+  const expected = path.resolve("tools", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
+  assert.equal(resolveFFmpeg({ override: expected }), expected);
 });

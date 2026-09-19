@@ -39,6 +39,18 @@ function resolveBinary(options = {}) {
   return path.join(path.dirname(manifest), "bin", target.binaryName);
 }
 
+function resolveFFmpeg(options = {}) {
+  const override = options.override || process.env.XFYUN_FFMPEG_PATH;
+  if (override) {
+    return path.resolve(override);
+  }
+  try {
+    return require("@ffmpeg-installer/ffmpeg").path;
+  } catch {
+    return null;
+  }
+}
+
 function run() {
   let binary;
   try {
@@ -48,8 +60,13 @@ function run() {
     process.exitCode = 1;
     return;
   }
+  const env = { ...process.env };
+  const ffmpeg = resolveFFmpeg();
+  if (ffmpeg && !env.XFYUN_FFMPEG_PATH) {
+    env.XFYUN_FFMPEG_PATH = ffmpeg;
+  }
   const child = spawn(binary, process.argv.slice(2), {
-    env: process.env,
+    env,
     stdio: "inherit",
     windowsHide: true
   });
@@ -70,4 +87,4 @@ if (require.main === module) {
   run();
 }
 
-module.exports = { TARGETS, targetFor, resolveBinary };
+module.exports = { TARGETS, targetFor, resolveBinary, resolveFFmpeg };

@@ -1,6 +1,6 @@
 # TTS parameter guide
 
-Use `xfyun_tts` with exactly one of `text` or `text_path`, and always set `output_path`. A streaming session accepts at most 64 KiB of UTF-8 text. Clean tabs, emoji, invisible characters, and HTML/Markdown control syntax when they are accidental; ask before changing meaningful content.
+Use `xfyun_tts` with exactly one of `text` or `text_path`, and always set `output_path`. Each service session accepts at most 64 KiB of UTF-8 text; the tool automatically splits longer input at sentence and UTF-8-safe boundaries and writes all audio to one output. Clean tabs, emoji, invisible characters, and HTML/Markdown control syntax when they are accidental; ask before changing meaningful content.
 
 ## Map user intent to arguments
 

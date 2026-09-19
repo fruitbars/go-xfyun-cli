@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -189,7 +188,7 @@ func runTTS(ctx context.Context, args []string, stdin io.Reader, stdout, stderr 
 	returnPronounce := fs.Int("return-pronounce", 0, "return phoneme annotation on stderr: 0 off, 1 on")
 	visibleWatermark := fs.Int("visible-watermark", 0, "audible watermark: 0 off, 1 sentence start, 2 sentence end")
 	implicitWatermark := fs.Bool("implicit-watermark", false, "add an implicit watermark (lame only)")
-	timeout := fs.Duration("timeout", 5*time.Minute, "request timeout")
+	timeout := fs.Duration("timeout", 0, "overall request timeout; default 5 minutes per automatic text segment")
 	fs.Usage = func() {
 		fmt.Fprintln(stderr, "Usage: xfyun tts (--text TEXT | --text-file FILE | < stdin) --output FILE [options]")
 		fs.PrintDefaults()
@@ -214,12 +213,9 @@ func runTTS(ctx context.Context, args []string, stdin io.Reader, stdout, stderr 
 		defer file.Close()
 		source = file
 	}
-	textBytes, err := io.ReadAll(io.LimitReader(source, 64*1024+1))
+	textBytes, err := io.ReadAll(source)
 	if err != nil {
 		return fmt.Errorf("read text: %w", err)
-	}
-	if len(textBytes) > 64*1024 {
-		return fmt.Errorf("text input exceeds the 64 KiB streaming-session limit")
 	}
 	creds.FromEnv()
 	if err := creds.ValidateTTS(); err != nil {
@@ -239,7 +235,11 @@ func runTTS(ctx context.Context, args []string, stdin io.Reader, stdout, stderr 
 		}()
 		output = temporary
 	}
-	requestCtx, cancel := context.WithTimeout(ctx, *timeout)
+	requestTimeout := *timeout
+	if requestTimeout <= 0 {
+		requestTimeout = time.Duration(len(tts.SplitText(string(textBytes), tts.MaxTextBytes))) * 5 * time.Minute
+	}
+	requestCtx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 	client := tts.Client{Credentials: creds}
 	metadata, err := client.Synthesize(requestCtx, string(textBytes), output, tts.Options{
@@ -262,7 +262,7 @@ func runTTS(ctx context.Context, args []string, stdin io.Reader, stdout, stderr 
 		}
 	}
 	if *outputPath != "-" {
-		fmt.Fprintf(stderr, "wrote %d bytes to %s (sid: %s)\n", metadata.Bytes, *outputPath, metadata.SID)
+		fmt.Fprintf(stderr, "wrote %d bytes to %s (%d segment(s), sid: %s)\n", metadata.Bytes, *outputPath, metadata.Segments, metadata.SID)
 	}
 	if metadata.Pronunciation != "" {
 		fmt.Fprintf(stderr, "pronunciation: %s\n", metadata.Pronunciation)
@@ -347,7 +347,7 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	orderID := fs.String("order-id", "", "existing order ID (query mode)")
 	signatureRandom := fs.String("signature-random", "", "signature random returned during upload (query mode)")
 	language := fs.String("language", "autodialect", "autodialect or autominor")
-	durationMS := fs.Int64("duration-ms", 0, "audio duration in milliseconds; zero disables duration checking")
+	durationMS := fs.Int64("duration-ms", 0, "known audio duration in milliseconds; zero auto-detects")
 	domain := fs.String("domain", "", "domain optimization, such as finance or medical")
 	roleType := fs.Int("role-type", 0, "speaker separation: 0 off, 1 generic, 3 voiceprint")
 	roleNum := fs.Int("role-num", 0, "expected speaker count from 0 to 10")
@@ -399,18 +399,13 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 		Extra: extra, NoWait: *noWait, SignatureRand: *signatureRandom,
 	}
 	var result ifasr.Result
+	var batch ifasr.BatchResult
 	var err error
 	if *inputPath != "" {
-		file, openErr := os.Open(*inputPath)
-		if openErr != nil {
-			return fmt.Errorf("open audio input: %w", openErr)
+		batch, err = client.TranscribeFile(ctx, *inputPath, opts)
+		if len(batch.Parts) == 1 {
+			result = batch.Parts[0].Result
 		}
-		defer file.Close()
-		info, statErr := file.Stat()
-		if statErr != nil {
-			return fmt.Errorf("stat audio input: %w", statErr)
-		}
-		result, err = client.Transcribe(ctx, file, filepath.Base(*inputPath), info.Size(), opts)
 	} else if *noWait {
 		var response ifasr.Response
 		response, err = client.Query(ctx, *orderID, *signatureRandom, *resultType)
@@ -420,6 +415,13 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	}
 	if err != nil {
 		return err
+	}
+	if *inputPath != "" && batch.Split {
+		if *raw || *noWait {
+			return writeJSON(stdout, batch)
+		}
+		fmt.Fprintln(stdout, batch.Transcript)
+		return nil
 	}
 	if *raw || *noWait {
 		return writeJSON(stdout, result)
