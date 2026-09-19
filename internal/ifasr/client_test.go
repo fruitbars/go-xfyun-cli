@@ -1,8 +1,15 @@
 package ifasr
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/fruitbars/go-xfyun-cli/internal/config"
 )
 
 func TestExtractTranscript(t *testing.T) {
@@ -35,6 +42,66 @@ func TestExtractTranscriptsAcceptsObjectAndStringSegments(t *testing.T) {
 	}
 	if processed != "对象字符串" || original != "" {
 		t.Fatalf("processed=%q original=%q", processed, original)
+	}
+}
+
+func TestExtractTranscriptsSkipsMissingAndNullSegments(t *testing.T) {
+	orderResult := `{"lattice":[{}, {"json_1best":null}, {"json_1best":{"st":{"rt":[{"ws":[{"cw":[]},{"cw":[{"w":"保留"}]}]}]}}}]}`
+	processed, original, err := ExtractTranscripts(orderResult)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if processed != "保留" || original != "" {
+		t.Fatalf("processed=%q original=%q", processed, original)
+	}
+}
+
+func TestExtractTranscriptsRejectsMalformedSegments(t *testing.T) {
+	for _, orderResult := range []string{
+		`{"lattice":[{"json_1best":"{not-json"}]}`,
+		`{"lattice":[{"json_1best":42}]}`,
+	} {
+		if _, _, err := ExtractTranscripts(orderResult); err == nil || !strings.Contains(err.Error(), "decode IFASR segment") {
+			t.Fatalf("ExtractTranscripts(%q) error = %v", orderResult, err)
+		}
+	}
+}
+
+func TestWaitParsesCompletedResponseWithObjectLattice(t *testing.T) {
+	orderResult := `{"lattice":[{"json_1best":"{\"st\":{\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"处理后\"}]}]}]}}"}],"lattice2":[{"json_1best":{"st":{"rt":[{"ws":[{"cw":[{"w":"原始"}]}]}]}}}]}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/getResult" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("orderId"); got != "test-order" {
+			t.Fatalf("orderId = %q", got)
+		}
+		if got := r.URL.Query().Get("signatureRandom"); got != "test-random" {
+			t.Fatalf("signatureRandom = %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(Response{
+			Code: "000000",
+			Content: Content{
+				OrderInfo:   OrderInfo{OrderID: "test-order", Status: 4, OriginalDuration: 1234},
+				OrderResult: orderResult,
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}))
+	defer server.Close()
+
+	client := Client{
+		Credentials: config.Credentials{AppID: "app", APIKey: "key", APISecret: "secret"},
+		Endpoint:    server.URL,
+	}
+	result, err := client.Wait(context.Background(), "test-order", "test-random", Options{MaxWait: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != 4 || result.Transcript != "处理后" || result.OriginalTranscript != "原始" {
+		t.Fatalf("result = %+v", result)
 	}
 }
 

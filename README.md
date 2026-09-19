@@ -167,6 +167,8 @@ xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd...' --no-wait
 
 普通提交后必须同时保存 `order_id` 与 `signature_random`；自动切片时保存返回的 `parts` 数组，并原样传给结果查询的 `orders`。状态 `0` 为已创建、`3` 为处理中、`4` 为完成、`-1` 为失败。客户端当前只实现文件流上传，没有实现文档中语义不够明确的 `urlLink` 模式。
 
+凭证字段映射、MCP/CLI 完整流程、批量续跑策略、结果字段和 `000002`/`100020` 等错误排查见 [IFASR 使用指南](docs/ifasr.md)。
+
 ## MCP Server
 
 `xfyun-ai-mcp` 暴露：
@@ -193,7 +195,7 @@ IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先
 }
 ```
 
-Codex、Claude Code、WorkBuddy 及其他宿主的安装方法见 [Agent 产品接入指南](docs/agent-integration.md)。OCR 的图片/PDF 输入、Markdown/SED、版面坐标、标注图片和限制见 [OCR 使用指南](docs/ocr.md)；语音格式、长文本拆分、发音参数与水印见 [TTS 使用指南](docs/tts.md)。
+Codex、Claude Code、WorkBuddy 及其他宿主的安装方法见 [Agent 产品接入指南](docs/agent-integration.md)。OCR 的图片/PDF 输入、Markdown/SED、版面坐标、标注图片和限制见 [OCR 使用指南](docs/ocr.md)；语音格式、长文本拆分、发音参数与水印见 [TTS 使用指南](docs/tts.md)；异步录音转写、自动切片、批量续跑和错误排查见 [IFASR 使用指南](docs/ifasr.md)。
 
 ## WorkBuddy 连接器与 Skill
 

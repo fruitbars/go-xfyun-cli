@@ -3,10 +3,12 @@
 Cross-platform `npx` launcher for the `xfyun-ai-mcp` stdio MCP server.
 
 ```bash
-npx -y @fruitbars/xfyun-ai-mcp@0.4.2
+npx -y @fruitbars/xfyun-ai-mcp@latest --version
 ```
 
-The launcher selects an npm optional dependency for Windows, macOS, or Linux on x64/arm64 and starts the native Go server with inherited stdio and environment variables. Configure `XFYUN_APP_ID`, `XFYUN_API_KEY`, and `XFYUN_API_SECRET` in the MCP host.
+The launcher selects an npm optional dependency for Windows, macOS, or Linux on x64/arm64 and starts the native Go server with inherited stdio and environment variables. It exposes five tools: `xfyun_ocr`, `xfyun_tts`, `xfyun_rtasr`, `xfyun_ifasr_submit`, and `xfyun_ifasr_result`.
+
+Configure `XFYUN_APP_ID`, `XFYUN_API_KEY`, and `XFYUN_API_SECRET` from the same XFYun application in the MCP host. There is no separate fourth IFASR credential. Restart the host after changing its environment; an already-running MCP process cannot inherit later shell changes.
 
 To configure Codex without editing TOML by hand, run:
 
@@ -16,7 +18,29 @@ npx -y @fruitbars/xfyun-ai-mcp@latest setup codex
 
 This writes the MCP command and environment-variable names only; set the three credential values in the host environment and restart Codex.
 
+Claude Code can register the server directly:
+
+```bash
+claude mcp add --scope user --transport stdio xfyun-ai -- npx -y @fruitbars/xfyun-ai-mcp@latest
+```
+
 The optional media helper is passed to the native server automatically. TTS text over the 64 KiB service-session limit is split at safe text boundaries and written to one audio output. IFASR audio over 5 hours or 500 MiB is probed, losslessly split, submitted as multiple orders, and merged by the result tool. Users do not need to prepare chunks themselves.
+
+## Recording transcription (IFASR)
+
+Use IFASR for completed `mp3`, `wav`, `pcm`, `opus`, `flac`, `ogg`, or `speex` recordings. Submit a local path with `xfyun_ifasr_submit`, then preserve both `order_id` and `signature_random` and pass them to `xfyun_ifasr_result`. A split submission returns `parts`; preserve every part and pass the ordered references as `orders` so the result tool can merge them.
+
+Status `0` means created, `3` processing, `4` complete, and `-1` failed. Use `wait=false` for one status check when the MCP host has a short timeout. For batches, save each order reference immediately after submission so an interrupted run can resume without a duplicate upload.
+
+The default language mode is `autodialect` (Chinese, English, and dialects); `autominor` enables multilingual recognition when that capability is intended. The client accepts XFYun's observed `json_1best` variants whether the nested JSON is returned as a string or an object.
+
+Common setup errors:
+
+- Missing `XFYUN_*`: restart the MCP host after setting the three variables.
+- `000002`: verify APIKey, APPID, and APISecret belong to the same application.
+- `100020`: verify recording-transcription access and the requested language mode have propagated; do not retry indefinitely or switch modes without user intent.
+
+See the repository's [IFASR guide](https://github.com/fruitbars/go-xfyun-cli/blob/main/docs/ifasr.md) for MCP and CLI examples, batch recovery, speaker separation, smoothing, language analysis, limits, output fields, and troubleshooting.
 
 For TTS, prefer `lame` (playable MP3, the default) or `raw` (headerless PCM). XFYun's Opus/Speex variants are raw codec streams rather than Ogg files. See the repository's [TTS guide](https://github.com/fruitbars/go-xfyun-cli/blob/main/docs/tts.md) for formats, voice controls, long-text behavior, watermarks, and troubleshooting.
 

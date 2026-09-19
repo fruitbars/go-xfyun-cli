@@ -24,3 +24,14 @@ Use `wait=false` for one status check when host timeouts are short. Status `0` m
 - Both: `result_type="transfer,analysis"` and `include_raw=true`.
 
 When smoothing or colloquial processing is enabled, `transcript` is the processed `lattice` text and `original_transcript` is parsed from `lattice2` when returned. `raw_result` contains the service `orderResult` JSON string only when `include_raw=true`; request it for language-analysis details or fields not represented by the parsed outputs.
+
+The service may encode `json_1best` as either a JSON string or an embedded object; the client accepts both. For batches, persist each order reference immediately after submission so an interrupted run can resume without uploading and charging again.
+
+## Troubleshooting
+
+- Missing `XFYUN_*`: restart the MCP host after setting credentials; an already-running child process cannot see later shell changes.
+- `000002`: `accessKeyId` is unknown. Verify that APIKey and the other two credentials belong to the same application; there is no fourth IFASR credential.
+- `100020`: language verification failed. Verify the recording-transcription entitlement and quota for the current application and requested `autodialect` or `autominor` mode. Newly enabled access may take time to propagate. Do not retry indefinitely or change language mode without user intent.
+- `100008`: request time is outside the allowed window; check system clock and timezone.
+- `100009`: signature verification failed; check the credential triplet.
+- `100012`: request frequency exceeded; reduce submission or polling rate.

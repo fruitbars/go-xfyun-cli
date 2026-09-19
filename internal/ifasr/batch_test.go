@@ -51,6 +51,9 @@ func TestTranscribeFileClosesInputExactlyOnce(t *testing.T) {
 		if r.URL.Path != "/v2/upload" {
 			t.Fatalf("path = %q", r.URL.Path)
 		}
+		if r.ContentLength != int64(len("test audio")) {
+			t.Fatalf("content length = %d", r.ContentLength)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"code":"000000","descInfo":"success","content":{"orderId":"test-order"}}`)
 	}))

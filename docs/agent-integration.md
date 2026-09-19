@@ -156,6 +156,8 @@ Cursor、Cline、Windsurf、Continue、Zed 等只要支持本地 stdio MCP，就
 
 应看到五个工具：`xfyun_ocr`、`xfyun_tts`、`xfyun_rtasr`、`xfyun_ifasr_submit`、`xfyun_ifasr_result`。文件路径必须对 MCP Server 所在机器可见。
 
+IFASR 普通任务必须保留 `order_id` 和 `signature_random`；自动切片任务必须保留完整 `parts` 并作为 `orders` 查询。状态 `0/3` 可以继续轮询，`4` 才表示完成，`-1` 应检查 `fail_type`。批量文件应在每次提交成功后立即保存任务标识，避免宿主中断后重复上传。详细流程和错误码见 [IFASR 使用指南](ifasr.md)。
+
 ## 发布前检查
 
 1. 确认 npm scope `@fruitbars` 可用且发布账号有权限。

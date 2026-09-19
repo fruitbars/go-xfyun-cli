@@ -55,3 +55,18 @@ test("sets up Codex MCP env var forwarding without writing credentials", () => {
     rmSync(home, { recursive: true, force: true });
   }
 });
+
+test("package README documents resumable IFASR usage", () => {
+  const readme = readFileSync(path.resolve(__dirname, "../README.md"), "utf8");
+  for (const required of [
+    "xfyun_ifasr_submit",
+    "xfyun_ifasr_result",
+    "order_id",
+    "signature_random",
+    "parts",
+    "100020",
+    "docs/ifasr.md"
+  ]) {
+    assert.ok(readme.includes(required), `README is missing ${required}`);
+  }
+});
