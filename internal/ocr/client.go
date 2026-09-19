@@ -14,6 +14,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -68,6 +69,45 @@ type Result struct {
 	Status   int    `json:"status"`
 	Seq      int    `json:"seq"`
 	Text     string `json:"text"`
+}
+
+// UnmarshalJSON accepts both the numeric and quoted-numeric seq variants
+// returned by different OCR response modes.
+func (r *Result) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		Encoding string          `json:"encoding"`
+		Compress string          `json:"compress"`
+		Format   string          `json:"format"`
+		Status   int             `json:"status"`
+		Seq      json.RawMessage `json:"seq"`
+		Text     string          `json:"text"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	seq := 0
+	if len(wire.Seq) > 0 && string(wire.Seq) != "null" {
+		if err := json.Unmarshal(wire.Seq, &seq); err != nil {
+			var quoted string
+			if quoteErr := json.Unmarshal(wire.Seq, &quoted); quoteErr != nil {
+				return fmt.Errorf("OCR result seq is neither an integer nor a numeric string: %s", string(wire.Seq))
+			}
+			parsed, parseErr := strconv.Atoi(strings.TrimSpace(quoted))
+			if parseErr != nil {
+				return fmt.Errorf("OCR result seq is not numeric: %q", quoted)
+			}
+			seq = parsed
+		}
+	}
+	*r = Result{
+		Encoding: wire.Encoding,
+		Compress: wire.Compress,
+		Format:   wire.Format,
+		Status:   wire.Status,
+		Seq:      seq,
+		Text:     wire.Text,
+	}
+	return nil
 }
 
 type Response struct {

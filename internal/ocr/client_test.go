@@ -3,6 +3,7 @@ package ocr
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"image"
 	"image/color"
 	"image/gif"
@@ -28,6 +29,25 @@ func TestValidateOptions(t *testing.T) {
 	invalid.OutputType = "streaming_layout"
 	if err := validateOptions(invalid); err == nil {
 		t.Fatal("expected unsupported streaming output error")
+	}
+}
+
+func TestResultAcceptsNumericAndQuotedSeq(t *testing.T) {
+	tests := []struct {
+		input string
+		want  int
+	}{
+		{input: `{"seq":3,"text":"numeric"}`, want: 3},
+		{input: `{"seq":"4","text":"quoted"}`, want: 4},
+	}
+	for _, test := range tests {
+		var response Response
+		if err := json.Unmarshal([]byte(`{"payload":{"result":`+test.input+`}}`), &response); err != nil {
+			t.Fatalf("decode %s: %v", test.input, err)
+		}
+		if response.Payload.Result.Seq != test.want {
+			t.Fatalf("seq = %d, want %d for %s", response.Payload.Result.Seq, test.want, test.input)
+		}
 	}
 }
 
