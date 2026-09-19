@@ -133,6 +133,51 @@ func TestParseAnnotationTypesSupportsDocumentedAndHelperTypes(t *testing.T) {
 	}
 }
 
+func TestAnnotateImageDrawsEverySupportedType(t *testing.T) {
+	const (
+		width  = 640
+		height = 240
+	)
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	for index := range img.Pix {
+		img.Pix[index] = 0xff
+	}
+	var source bytes.Buffer
+	if err := png.Encode(&source, img); err != nil {
+		t.Fatal(err)
+	}
+
+	content := make([]map[string]any, 0, len(SupportedAnnotationTypes))
+	for index, typeName := range SupportedAnnotationTypes {
+		x := 10 + (index%7)*90
+		y := 10 + (index/7)*55
+		content = append(content, map[string]any{
+			"type": typeName,
+			"coord": []map[string]int{
+				{"x": x, "y": y}, {"x": x + 70, "y": y},
+				{"x": x + 70, "y": y + 35}, {"x": x, "y": y + 35},
+			},
+		})
+	}
+	response, err := json.Marshal(map[string]any{
+		"image": []map[string]any{{"width": width, "height": height, "content": content}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	annotated, count, err := AnnotateImage(source.Bytes(), response, "all")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != len(SupportedAnnotationTypes) {
+		t.Fatalf("annotation count = %d, want %d", count, len(SupportedAnnotationTypes))
+	}
+	if _, _, err := image.Decode(bytes.NewReader(annotated)); err != nil {
+		t.Fatalf("decode annotated image: %v", err)
+	}
+}
+
 func TestTransformAnnotationPointRestoresQuarterTurn(t *testing.T) {
 	tests := []struct {
 		angle float64
