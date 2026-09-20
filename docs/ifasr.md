@@ -204,7 +204,7 @@ MCP 结构化结果还返回 `fail_type`、`language`、`original_duration_ms`�
 | `orderResult` | `lattice2` | 原始识别结果；开启顺滑/口语规整并具备权限时返回 |
 | `orderResult` | `label.rl_track` | 双声道模式下角色与左右声道映射 |
 
-设置 `include_raw=true` 可取得仅含 `orderResult` 的 `raw_result`，以及保留整个服务响应的 `raw_response`。角色编号、词级时间、词属性和双声道映射当前保留在原始结构中：
+设置 `include_raw=true` 可取得仅含 `orderResult` 的 `raw_result`，以及保留整个服务响应的 `raw_response`。角色编号、词级时间、词属性和双声道映射仍会保留在原始结构中；句段级 `st.bg/ed` 也会映射到 `speakers[].segments`：
 
 - `st.bg/ed`：句段起止毫秒；`st.rl`：角色编号
 - `ws.wb/we`：相对 `st.bg` 的词帧位置，每帧 10 ms
@@ -270,6 +270,17 @@ xfyun ifasr --input stereo.wav --track-mode 2 --raw
 
 CLI 的 `--raw` 结果也包含 `speakers`。若只需要某一发音人，可按 `speaker` 或 `track` 从该数组取出对应文本。
 
+开启角色或声道分离时，可以让 CLI 额外写出便于直接交付的文本文件：
+
+```bash
+xfyun ifasr --input meeting.wav \
+  --role-type 1 --role-num 2 \
+  --speaker-output-dir ./meeting-speakers \
+  --speaker-timestamps
+```
+
+该目录包含 `speakers.txt` 汇总文件，以及 `speaker-<speaker>[-<track>].txt` 独立文件。`--speaker-timestamps` 使用服务 lattice 的 `bg/ed` 毫秒偏移，输出 `[HH:MM:SS.mmm --> HH:MM:SS.mmm]`；不设置时只写纯文本。原始完整时序文本仍输出到 stdout 或 `transcript`，已有派生文件默认不覆盖，可用 `--speaker-force` 明确允许覆盖。
+
 外链提交：
 
 ```bash
@@ -319,5 +330,7 @@ xfyun ifasr \
 ## 实测基线
 
 项目已用 8 kHz、16 bit、单声道 WAV 批量验证 `role_type=1, role_num=2`：14 个文件、累计约 30 分钟，全部返回状态 `4`，每个结果均出现角色 `1` 和 `2`。另用 20 个双声道 WAV（累计约 1368 秒）验证 `trackMode=2`，全部返回状态 `4`，每个结果均包含非空的 `L/R` 两组 `speakers` 文本；双声道时不要假设 `speaker` 从 1 开始，应以服务返回的 `speaker + track` 为准。自动化测试同时覆盖文件流生命周期、URL 外链参数与空请求体、`trackMode`、正式领域值、老参数兼容透传、角色文本聚合、字符串/对象两种 `json_1best`、原始 `lattice2`、空片段以及损坏片段报错。
+
+媒体预处理可用 CLI 的 `xfyun media info` 查询采样率、声道、编码、码率和时长，用 `xfyun media convert` 在单/双声道、采样率和码率之间转换；MCP 对应 `xfyun_media`。
 
 官方接口文档：[录音文件转写大模型](https://www.xfyun.cn/doc/spark/asr_llm/Ifasr_llm.html)

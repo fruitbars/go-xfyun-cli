@@ -47,7 +47,7 @@ func TestExtractTranscriptsAcceptsObjectAndStringSegments(t *testing.T) {
 }
 
 func TestExtractSpeakerTranscriptsGroupsRolesAndTracks(t *testing.T) {
-	orderResult := `{"lattice":[{"json_1best":"{\"st\":{\"rl\":\"1\",\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"左声道\"}]}]}]}}"},{"json_1best":{"st":{"rl":"2","rt":[{"ws":[{"cw":[{"w":"右声道"}]}]}]}}},{"json_1best":"{\"st\":{\"rl\":\"1\",\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"继续\"}]}]}]}}"}],"label":{"rl_track":[{"rl":"1","track":"L"},{"rl":"2","track":"R"}]}}`
+	orderResult := `{"lattice":[{"json_1best":"{\"st\":{\"rl\":1,\"bg\":100,\"ed\":240,\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"左声道\"}]}]}]}}"},{"json_1best":{"st":{"rl":"2","bg":"300","ed":"420","rt":[{"ws":[{"cw":[{"w":"右声道"}]}]}]}}},{"json_1best":"{\"st\":{\"rl\":\"1\",\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"继续\"}]}]}]}}"}],"label":{"rl_track":[{"rl":1,"track":"L"},{"rl":"2","track":"R"}]}}`
 	speakers, err := ExtractSpeakerTranscripts(orderResult)
 	if err != nil {
 		t.Fatal(err)
@@ -57,6 +57,9 @@ func TestExtractSpeakerTranscriptsGroupsRolesAndTracks(t *testing.T) {
 	}
 	if speakers[0].Speaker != "1" || speakers[0].Track != "L" || speakers[0].Transcript != "左声道\n继续" {
 		t.Fatalf("speaker 1 = %+v", speakers[0])
+	}
+	if len(speakers[0].Segments) != 1 || speakers[0].Segments[0].StartMS != 100 || speakers[0].Segments[0].EndMS != 240 {
+		t.Fatalf("speaker 1 segments = %+v", speakers[0].Segments)
 	}
 	if speakers[1].Speaker != "2" || speakers[1].Track != "R" || speakers[1].Transcript != "右声道" {
 		t.Fatalf("speaker 2 = %+v", speakers[1])

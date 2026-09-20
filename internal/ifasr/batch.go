@@ -30,9 +30,10 @@ type BatchPart struct {
 }
 
 type BatchResult struct {
-	Split      bool        `json:"split"`
-	Parts      []BatchPart `json:"parts"`
-	Transcript string      `json:"transcript,omitempty"`
+	Split      bool                `json:"split"`
+	Parts      []BatchPart         `json:"parts"`
+	Transcript string              `json:"transcript,omitempty"`
+	Speakers   []SpeakerTranscript `json:"speakers,omitempty"`
 }
 
 type audioPart struct {
@@ -79,6 +80,7 @@ func (c *Client) TranscribeFile(ctx context.Context, inputPath string, opts Opti
 	}
 
 	transcripts := make([]string, 0, len(batch.Parts))
+	var speakers []SpeakerTranscript
 	for index := range batch.Parts {
 		result, err := c.Wait(ctx, batch.Parts[index].Result.OrderID, batch.Parts[index].Result.SignatureRand, opts)
 		if err != nil {
@@ -88,9 +90,36 @@ func (c *Client) TranscribeFile(ctx context.Context, inputPath string, opts Opti
 		if result.Transcript != "" {
 			transcripts = append(transcripts, result.Transcript)
 		}
+		speakers = mergeSpeakerTranscripts(speakers, result.Speakers)
 	}
 	batch.Transcript = strings.Join(transcripts, "\n")
+	batch.Speakers = speakers
 	return batch, nil
+}
+
+func mergeSpeakerTranscripts(current, next []SpeakerTranscript) []SpeakerTranscript {
+	if len(next) == 0 {
+		return current
+	}
+	indices := make(map[string]int, len(current))
+	for index, speaker := range current {
+		indices[speaker.Speaker+"\x00"+speaker.Track] = index
+	}
+	for _, speaker := range next {
+		key := speaker.Speaker + "\x00" + speaker.Track
+		index, ok := indices[key]
+		if !ok {
+			indices[key] = len(current)
+			current = append(current, speaker)
+			continue
+		}
+		if current[index].Transcript != "" && speaker.Transcript != "" {
+			current[index].Transcript += "\n"
+		}
+		current[index].Transcript += speaker.Transcript
+		current[index].Segments = append(current[index].Segments, speaker.Segments...)
+	}
+	return current
 }
 
 func prepareAudioParts(ctx context.Context, inputPath string, declaredDurationMS int64) ([]audioPart, bool, func(), error) {

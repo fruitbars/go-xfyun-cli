@@ -63,6 +63,10 @@ For submission, post-processing, speaker, and analysis options read [ifasr.md](i
 
 Pass the two submit identifiers, or pass all split references in `orders`. Use `wait=false` for one status check per order or `wait=true` with `poll_seconds` and `max_wait_seconds` to poll and merge all parts.
 
+### `xfyun_media`
+
+Use `operation=info` with `input_path` to inspect local audio sample rate, channels, codec, bitrate, and duration. Use `operation=convert` with `output_path` and one or more of `channels` (`1` mono or `2` stereo), `sample_rate`, and `bitrate` (for example `128k`). Existing outputs are protected unless `force=true`. The server uses FFmpeg for conversion and prefers FFprobe for inspection, with an FFmpeg metadata fallback; set `XFYUN_FFPROBE_PATH` when a dedicated probe binary is available.
+
 ## CLI fallback
 
 ```bash
@@ -78,6 +82,8 @@ For an asynchronous recording workflow:
 ```bash
 xfyun ifasr --input meeting.mp3 --no-wait
 xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd1234EfGh5678'
+xfyun media info --input meeting.wav
+xfyun media convert --input stereo.wav --output mono-16k.wav --channels 1 --sample-rate 16000
 ```
 
 Use `xfyun <command> --help` for advanced CLI options.

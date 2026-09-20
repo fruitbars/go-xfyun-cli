@@ -6,7 +6,7 @@ Cross-platform `npx` launcher for the `xfyun-ai-mcp` stdio MCP server.
 npx -y @fruitbars/xfyun-ai-mcp@latest --version
 ```
 
-The launcher selects an npm optional dependency for Windows, macOS, or Linux on x64/arm64 and starts the native Go server with inherited stdio and environment variables. It exposes five tools: `xfyun_ocr`, `xfyun_tts`, `xfyun_rtasr`, `xfyun_ifasr_submit`, and `xfyun_ifasr_result`.
+The launcher selects an npm optional dependency for Windows, macOS, or Linux on x64/arm64 and starts the native Go server with inherited stdio and environment variables. It exposes six tools: `xfyun_ocr`, `xfyun_tts`, `xfyun_rtasr`, `xfyun_ifasr_submit`, `xfyun_ifasr_result`, and `xfyun_media`.
 
 Configure `XFYUN_APP_ID`, `XFYUN_API_KEY`, and `XFYUN_API_SECRET` from the same XFYun application in the MCP host. There is no separate fourth IFASR credential. Restart the host after changing its environment; an already-running MCP process cannot inherit later shell changes.
 
@@ -36,7 +36,9 @@ Status `0` means created, `3` processing, `4` complete, and `-1` failed. Use `wa
 
 Set `include_raw=true` when speaker IDs, word timing, stereo `label.rl_track`, or other detailed fields are needed. `raw_result` contains `orderResult`; `raw_response` preserves the complete service response, including reserved future result fields.
 
-The result also includes `speakers`, grouping processed text by the service-returned speaker ID. With `track_mode=2`, each entry includes `track` (`L` or `R`), so agents can return each channel separately without parsing raw JSON. Do not assume speaker IDs start at 1; use the returned `speaker` value together with `track`.
+The result also includes `speakers`, grouping processed text by the service-returned speaker ID. Each entry includes `transcript` and, when the service reports `st.bg/ed`, timestamped `segments` with `start_ms`, `end_ms`, and `transcript`. With `track_mode=2`, each entry includes `track` (`L` or `R`), so agents can return each channel separately without parsing raw JSON. Do not assume speaker IDs start at 1; use the returned `speaker` value together with `track`.
+
+Use `xfyun_media` with `operation=info` to inspect sample rate, channels, codec, bitrate, and duration, or with `operation=convert` to change mono/stereo channels, sample rate, and bitrate. Conversion requires `output_path` and does not replace an existing file unless `force=true`. `ffmpeg` is provided by the launcher; `ffprobe` is used when available and the server falls back to parsing FFmpeg metadata. Set `XFYUN_FFPROBE_PATH` when a dedicated probe binary is available.
 
 The default language mode is `autodialect` (Chinese, English, and dialects); `autominor` enables multilingual recognition when that capability is intended. Domain values are validated against XFYun's complete list. Legacy lfasr parameters such as `eng_max_clusters` and `eng_min_clusters` are accepted through `extra` for engine compatibility and forwarded unchanged; new integrations should prefer `role_type` and `role_num`. The client accepts XFYun's observed `json_1best` variants whether the nested JSON is returned as a string or an object.
 

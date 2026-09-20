@@ -12,6 +12,7 @@ import (
 
 	"github.com/fruitbars/go-xfyun-cli/internal/config"
 	"github.com/fruitbars/go-xfyun-cli/internal/ifasr"
+	"github.com/fruitbars/go-xfyun-cli/internal/media"
 	"github.com/fruitbars/go-xfyun-cli/internal/ocr"
 	"github.com/fruitbars/go-xfyun-cli/internal/outputfile"
 	"github.com/fruitbars/go-xfyun-cli/internal/rtasr"
@@ -34,7 +35,7 @@ func New(credentials config.Credentials) *mcp.Server {
 		Description: "OCR, speech synthesis, and speech transcription through XFYun large-model APIs",
 		Version:     version.Current,
 	}, &mcp.ServerOptions{
-		Instructions: "XFYun large-model media tools: use xfyun_ocr for document images, xfyun_tts for speech synthesis, xfyun_rtasr for live-style PCM/Opus/Speex streams, and xfyun_ifasr_submit plus xfyun_ifasr_result for completed recordings. Use OCR annotate=true only when the user asks for layout types drawn on the source. Multi-page OCR returns an NDJSON output_path; consume it incrementally instead of loading the entire file. Preserve both IFASR identifiers and poll with wait=false when the host has short tool timeouts. Credentials come from XFYUN_APP_ID, XFYUN_API_KEY, and XFYUN_API_SECRET. File paths are local to this server process. Never overwrite OCR or TTS output unless the user authorized force=true.",
+		Instructions: "XFYun large-model media tools: use xfyun_ocr for document images, xfyun_tts for speech synthesis, xfyun_rtasr for live-style PCM/Opus/Speex streams, and xfyun_ifasr_submit plus xfyun_ifasr_result for completed recordings. Use xfyun_media to inspect or convert local audio channels, sample rates, and bitrates. Use OCR annotate=true only when the user asks for layout types drawn on the source. Multi-page OCR returns an NDJSON output_path; consume it incrementally instead of loading the entire file. Preserve both IFASR identifiers and poll with wait=false when the host has short tool timeouts. Credentials come from XFYUN_APP_ID, XFYUN_API_KEY, and XFYUN_API_SECRET. File paths are local to this server process. Never overwrite OCR, TTS, or media output unless the user authorized force=true.",
 	})
 
 	addOCRTool(server, service)
@@ -42,6 +43,7 @@ func New(credentials config.Credentials) *mcp.Server {
 	addRTASRTool(server, service)
 	addIFASRSubmitTool(server, service)
 	addIFASRResultTool(server, service)
+	addMediaTool(server, service)
 	return server
 }
 
@@ -658,8 +660,15 @@ type IFASRPartResult struct {
 }
 
 type IFASRSpeakerResult struct {
-	Speaker    string `json:"speaker"`
-	Track      string `json:"track,omitempty"`
+	Speaker    string                `json:"speaker"`
+	Track      string                `json:"track,omitempty"`
+	Transcript string                `json:"transcript"`
+	Segments   []IFASRSpeakerSegment `json:"segments,omitempty"`
+}
+
+type IFASRSpeakerSegment struct {
+	StartMS    int64  `json:"start_ms,omitempty"`
+	EndMS      int64  `json:"end_ms,omitempty"`
 	Transcript string `json:"transcript"`
 }
 
@@ -798,7 +807,11 @@ func toMCPIFASRSpeakers(speakers []ifasr.SpeakerTranscript) []IFASRSpeakerResult
 	}
 	result := make([]IFASRSpeakerResult, 0, len(speakers))
 	for _, speaker := range speakers {
-		result = append(result, IFASRSpeakerResult{Speaker: speaker.Speaker, Track: speaker.Track, Transcript: speaker.Transcript})
+		converted := IFASRSpeakerResult{Speaker: speaker.Speaker, Track: speaker.Track, Transcript: speaker.Transcript}
+		for _, segment := range speaker.Segments {
+			converted.Segments = append(converted.Segments, IFASRSpeakerSegment{StartMS: segment.StartMS, EndMS: segment.EndMS, Transcript: segment.Transcript})
+		}
+		result = append(result, converted)
 	}
 	return result
 }
@@ -823,8 +836,84 @@ func mergeIFASRSpeakers(current, next []IFASRSpeakerResult) []IFASRSpeakerResult
 			current[index].Transcript += "\n"
 		}
 		current[index].Transcript += speaker.Transcript
+		current[index].Segments = append(current[index].Segments, speaker.Segments...)
 	}
 	return current
+}
+
+type MediaInput struct {
+	Operation   string `json:"operation" jsonschema:"info or convert"`
+	InputPath   string `json:"input_path" jsonschema:"Local audio path"`
+	OutputPath  string `json:"output_path,omitempty" jsonschema:"Converted audio destination; required for convert"`
+	Channels    int    `json:"channels,omitempty" jsonschema:"Output channels: 1 mono or 2 stereo"`
+	SampleRate  int    `json:"sample_rate,omitempty" jsonschema:"Output sample rate in Hz"`
+	Bitrate     string `json:"bitrate,omitempty" jsonschema:"Output audio bitrate such as 64k or 128k"`
+	Force       bool   `json:"force,omitempty" jsonschema:"Allow replacement of output_path"`
+	TimeoutSecs int    `json:"timeout_seconds,omitempty" jsonschema:"Operation timeout in seconds; default 120"`
+}
+
+type MediaOutput struct {
+	Operation  string     `json:"operation"`
+	OutputPath string     `json:"output_path,omitempty"`
+	Info       media.Info `json:"info"`
+}
+
+func addMediaTool(server *mcp.Server, service *Service) {
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "xfyun_media",
+		Title:       "Inspect or convert audio media",
+		Description: "Probe audio sample rate, channels, codec, bitrate, and duration, or convert local audio between mono/stereo, sample rates, and bitrates. Conversion never replaces an existing output unless force=true.",
+		Annotations: annotations(false, true, false),
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, input MediaInput) (*mcp.CallToolResult, MediaOutput, error) {
+		if input.InputPath == "" {
+			return nil, MediaOutput{}, fmt.Errorf("input_path is required")
+		}
+		if input.Operation == "" {
+			input.Operation = "info"
+		}
+		requestCtx, cancel := withTimeout(ctx, input.TimeoutSecs, 120)
+		defer cancel()
+		if input.Operation == "info" {
+			info, err := media.Probe(requestCtx, input.InputPath)
+			if err != nil {
+				return nil, MediaOutput{}, err
+			}
+			return nil, MediaOutput{Operation: "info", Info: info}, nil
+		}
+		if input.Operation != "convert" {
+			return nil, MediaOutput{}, fmt.Errorf("unsupported media operation %q", input.Operation)
+		}
+		if input.OutputPath == "" {
+			return nil, MediaOutput{}, fmt.Errorf("output_path is required for media conversion")
+		}
+		absolute, temporary, err := prepareAtomicOutput(input.OutputPath, input.Force)
+		if err != nil {
+			return nil, MediaOutput{}, err
+		}
+		temporaryPath := temporary.Name()
+		if err := temporary.Close(); err != nil {
+			_ = os.Remove(temporaryPath)
+			return nil, MediaOutput{}, fmt.Errorf("close temporary media output: %w", err)
+		}
+		committed := false
+		defer func() {
+			if !committed {
+				_ = os.Remove(temporaryPath)
+			}
+		}()
+		if err := media.Convert(requestCtx, input.InputPath, temporaryPath, media.ConvertOptions{Channels: input.Channels, SampleRate: input.SampleRate, Bitrate: input.Bitrate, Format: filepath.Ext(absolute)}); err != nil {
+			return nil, MediaOutput{}, err
+		}
+		if err := outputfile.Commit(temporaryPath, absolute, input.Force); err != nil {
+			return nil, MediaOutput{}, err
+		}
+		committed = true
+		info, err := media.Probe(requestCtx, absolute)
+		if err != nil {
+			return nil, MediaOutput{}, err
+		}
+		return nil, MediaOutput{Operation: "convert", OutputPath: absolute, Info: info}, nil
+	})
 }
 
 func annotations(readOnly, destructive, openWorld bool) *mcp.ToolAnnotations {

@@ -103,8 +103,17 @@ type Result struct {
 // SpeakerTranscript is the processed transcript grouped by the role ID in
 // the service response. Track is populated for dual-channel trackMode=2.
 type SpeakerTranscript struct {
-	Speaker    string `json:"speaker"`
-	Track      string `json:"track,omitempty"`
+	Speaker    string           `json:"speaker"`
+	Track      string           `json:"track,omitempty"`
+	Transcript string           `json:"transcript"`
+	Segments   []SpeakerSegment `json:"segments,omitempty"`
+}
+
+// SpeakerSegment is one time-ordered lattice segment for a speaker. The
+// service reports offsets in milliseconds when bg/ed are present.
+type SpeakerSegment struct {
+	StartMS    int64  `json:"start_ms,omitempty"`
+	EndMS      int64  `json:"end_ms,omitempty"`
 	Transcript string `json:"transcript"`
 }
 
@@ -553,8 +562,8 @@ func ExtractSpeakerTranscripts(orderResult string) ([]SpeakerTranscript, error) 
 		Lattice []latticeItem `json:"lattice"`
 		Label   struct {
 			RLTrack []struct {
-				RL    string `json:"rl"`
-				Track string `json:"track"`
+				RL    json.RawMessage `json:"rl"`
+				Track string          `json:"track"`
 			} `json:"rl_track"`
 		} `json:"label"`
 	}
@@ -563,30 +572,36 @@ func ExtractSpeakerTranscripts(orderResult string) ([]SpeakerTranscript, error) 
 	}
 	tracks := make(map[string]string, len(outer.Label.RLTrack))
 	for _, item := range outer.Label.RLTrack {
-		if item.RL != "" && item.Track != "" {
-			tracks[item.RL] = item.Track
+		role := stringValue(item.RL)
+		if role != "" && item.Track != "" {
+			tracks[role] = item.Track
 		}
 	}
 	var speakers []SpeakerTranscript
 	indices := make(map[string]int)
 	for _, item := range outer.Lattice {
-		role, text, err := parseLatticeItem(item)
+		parsed, err := parseLatticeItem(item)
 		if err != nil {
 			return nil, err
 		}
-		if role == "" || text == "" {
+		if parsed.Role == "" || parsed.Text == "" {
 			continue
 		}
-		index, ok := indices[role]
+		index, ok := indices[parsed.Role]
 		if !ok {
 			index = len(speakers)
-			indices[role] = index
-			speakers = append(speakers, SpeakerTranscript{Speaker: role, Track: tracks[role]})
+			indices[parsed.Role] = index
+			speakers = append(speakers, SpeakerTranscript{Speaker: parsed.Role, Track: tracks[parsed.Role]})
 		}
 		if speakers[index].Transcript != "" {
 			speakers[index].Transcript += "\n"
 		}
-		speakers[index].Transcript += text
+		speakers[index].Transcript += parsed.Text
+		if parsed.StartMS != 0 || parsed.EndMS != 0 {
+			speakers[index].Segments = append(speakers[index].Segments, SpeakerSegment{
+				StartMS: parsed.StartMS, EndMS: parsed.EndMS, Transcript: parsed.Text,
+			})
+		}
 	}
 	return speakers, nil
 }
@@ -601,30 +616,39 @@ type latticeItem struct {
 func extractLattice(latticeItems []latticeItem) (string, error) {
 	var transcript strings.Builder
 	for _, lattice := range latticeItems {
-		_, text, err := parseLatticeItem(lattice)
+		parsed, err := parseLatticeItem(lattice)
 		if err != nil {
 			return "", err
 		}
-		transcript.WriteString(text)
+		transcript.WriteString(parsed.Text)
 	}
 	return transcript.String(), nil
 }
 
-func parseLatticeItem(lattice latticeItem) (string, string, error) {
+type parsedLatticeItem struct {
+	Role    string
+	Text    string
+	StartMS int64
+	EndMS   int64
+}
+
+func parseLatticeItem(lattice latticeItem) (parsedLatticeItem, error) {
 	bestJSON := bytes.TrimSpace(lattice.Best)
 	if len(bestJSON) == 0 || bytes.Equal(bestJSON, []byte("null")) {
-		return "", "", nil
+		return parsedLatticeItem{}, nil
 	}
 	if bestJSON[0] == '"' {
 		var encoded string
 		if err := json.Unmarshal(bestJSON, &encoded); err != nil {
-			return "", "", fmt.Errorf("decode IFASR segment string: %w", err)
+			return parsedLatticeItem{}, fmt.Errorf("decode IFASR segment string: %w", err)
 		}
 		bestJSON = []byte(encoded)
 	}
 	var best struct {
 		ST struct {
-			RL string `json:"rl"`
+			RL json.RawMessage `json:"rl"`
+			BG json.RawMessage `json:"bg"`
+			ED json.RawMessage `json:"ed"`
 			RT []struct {
 				WS []struct {
 					CW []struct {
@@ -635,7 +659,7 @@ func parseLatticeItem(lattice latticeItem) (string, string, error) {
 		} `json:"st"`
 	}
 	if err := json.Unmarshal(bestJSON, &best); err != nil {
-		return "", "", fmt.Errorf("decode IFASR segment: %w", err)
+		return parsedLatticeItem{}, fmt.Errorf("decode IFASR segment: %w", err)
 	}
 	var transcript strings.Builder
 	for _, rt := range best.ST.RT {
@@ -645,7 +669,42 @@ func parseLatticeItem(lattice latticeItem) (string, string, error) {
 			}
 		}
 	}
-	return best.ST.RL, transcript.String(), nil
+	return parsedLatticeItem{
+		Role: stringValue(best.ST.RL), Text: transcript.String(),
+		StartMS: numberValue(best.ST.BG), EndMS: numberValue(best.ST.ED),
+	}, nil
+}
+
+func stringValue(raw json.RawMessage) string {
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return ""
+	}
+	var value string
+	if json.Unmarshal(raw, &value) == nil {
+		return value
+	}
+	var number json.Number
+	if json.Unmarshal(raw, &number) == nil {
+		return number.String()
+	}
+	return strings.Trim(string(raw), `"`)
+}
+
+func numberValue(raw json.RawMessage) int64 {
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return 0
+	}
+	var number float64
+	if json.Unmarshal(raw, &number) == nil {
+		return int64(number)
+	}
+	var value string
+	if json.Unmarshal(raw, &value) == nil {
+		if parsed, err := strconv.ParseFloat(value, 64); err == nil {
+			return int64(parsed)
+		}
+	}
+	return 0
 }
 
 func randomString(length int) (string, error) {

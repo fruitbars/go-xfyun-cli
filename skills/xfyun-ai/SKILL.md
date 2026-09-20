@@ -1,6 +1,6 @@
 ---
 name: xfyun-ai
-description: Use XFYun AI tools for document-image OCR, speech synthesis, real-time audio transcription, or asynchronous recording transcription. Apply when the user requests XFYun AI processing or when these configured tools are the intended provider; do not use for generic local media conversion.
+description: Use XFYun AI tools for document-image OCR, speech synthesis, real-time audio transcription, asynchronous recording transcription, or local audio preparation. Apply when the user requests XFYun AI processing or when these configured tools are the intended provider.
 ---
 
 # XFYun AI
@@ -13,6 +13,7 @@ Use the `xfyun-ai` MCP tools when available. Fall back to the `xfyun` CLI only w
 - Use `xfyun_tts` for speech synthesis. Require an explicit output path. Set `force=true` only when the user clearly authorized replacing that exact file.
 - Use `xfyun_rtasr` for PCM, Opus, or Speex input that should be streamed at real-time pacing. Its default is 16 kHz, 16-bit, mono PCM.
 - Use `xfyun_ifasr_submit` for ordinary or long recording files. Preserve `order_id` and `signature_random` for a normal response. When `split=true`, preserve every reference in `parts` and pass them as `orders` to `xfyun_ifasr_result`, which merges the transcripts.
+- Use `xfyun_media` to inspect or convert local audio channels, sample rates, and bitrates before transcription when the source does not match the requested service format.
 
 Load only the parameter reference for the selected capability:
 

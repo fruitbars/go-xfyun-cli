@@ -27,7 +27,9 @@ Use `wait=false` for one status check when host timeouts are short. Status `0` m
 
 When smoothing or colloquial processing is enabled, `transcript` is the processed `lattice` text and `original_transcript` is parsed from `lattice2` when returned. Use `smooth=false` and `colloquial=true` when the user asks to remove fillers and repeated speech patterns. With `include_raw=true`, `raw_result` contains `orderResult` and `raw_response` preserves the full service response; request them for role IDs, word timing, dual-channel `label.rl_track`, language-analysis details, or other fields not represented by the parsed outputs.
 
-Structured results also expose `speakers`: processed text grouped by `st.rl`, with `speaker`, `transcript`, and (for `track_mode=2`) `track` set to `L` or `R`. Use `speakers` directly when the user asks for separate speaker transcripts; `transcript` remains the complete time-ordered text.
+Structured results also expose `speakers`: processed text grouped by `st.rl`, with `speaker`, `transcript`, optional timestamped `segments` (`start_ms`, `end_ms`, `transcript`), and (for `track_mode=2`) `track` set to `L` or `R`. Use `speakers` directly when the user asks for separate speaker transcripts; `transcript` remains the complete time-ordered text. The CLI can write `speakers.txt` and per-speaker text files with `--speaker-output-dir`; add `--speaker-timestamps` for formatted timestamps.
+
+Use `xfyun_media` for local audio preparation: `operation=info` reports sample rate, channels, codec, bitrate, and duration; `operation=convert` supports mono/stereo, sample-rate, and bitrate conversion.
 
 The service may encode `json_1best` as either a JSON string or an embedded object; the client accepts both. For batches, persist each order reference immediately after submission so an interrupted run can resume without uploading and charging again.
 

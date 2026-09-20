@@ -36,7 +36,7 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 		names = append(names, tool.Name)
 	}
 	sort.Strings(names)
-	want := []string{"xfyun_ifasr_result", "xfyun_ifasr_submit", "xfyun_ocr", "xfyun_rtasr", "xfyun_tts"}
+	want := []string{"xfyun_ifasr_result", "xfyun_ifasr_submit", "xfyun_media", "xfyun_ocr", "xfyun_rtasr", "xfyun_tts"}
 	for i := range want {
 		if i >= len(names) || names[i] != want[i] {
 			t.Fatalf("tool names = %v, want %v", names, want)
@@ -65,9 +65,16 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, field := range []string{`"expire_time"`, `"task_estimate_time_ms"`, `"raw_response"`, `"speakers"`} {
+			for _, field := range []string{`"expire_time"`, `"task_estimate_time_ms"`, `"raw_response"`, `"speakers"`, `"segments"`} {
 				if !strings.Contains(string(outputSchema), field) {
 					t.Fatalf("IFASR result output schema does not expose %s: %s", field, outputSchema)
+				}
+			}
+		}
+		if tool.Name == "xfyun_media" {
+			for _, field := range []string{`"operation"`, `"input_path"`, `"output_path"`, `"sample_rate"`, `"channels"`, `"bitrate"`} {
+				if !strings.Contains(string(schema), field) {
+					t.Fatalf("media schema does not expose %s: %s", field, schema)
 				}
 			}
 		}

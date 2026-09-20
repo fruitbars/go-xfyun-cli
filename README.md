@@ -6,9 +6,10 @@
 - `tts`：超拟人语音合成
 - `rtasr`：实时语音转写大模型
 - `ifasr`：录音文件转写大模型
-- `xfyun-ai-mcp`：以上能力的 stdio MCP Server（5 个工具）
+- `media`：本地音频探测与格式转换
+- `xfyun-ai-mcp`：以上能力的 stdio MCP Server（6 个工具）
 
-四项能力统一使用讯飞控制台三元组 `APPID + APIKey + APISecret`。CLI 的业务结果写 stdout，进度和错误写 stderr，适合 Agent 与自动化程序调用。
+四项云能力统一使用讯飞控制台三元组 `APPID + APIKey + APISecret`；本地 `media` 工具不需要鉴权。CLI 的业务结果写 stdout，进度和错误写 stderr，适合 Agent 与自动化程序调用。
 
 ## 安装
 
@@ -156,6 +157,7 @@ xfyun ifasr --input meeting.mp3 --no-wait > order.json
 xfyun ifasr --input stereo.wav --track-mode 2 --raw
 xfyun ifasr --audio-url 'https://media.example/meeting.wav' --file-name meeting.wav --file-size-bytes 12345678
 xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd...' --no-wait
+xfyun ifasr --input stereo.wav --role-type 1 --role-num 2 --speaker-output-dir ./speakers --speaker-timestamps
 ```
 
 支持 `mp3/wav/pcm/opus/flac/ogg/speex`。单个讯飞任务最长 5 小时、最大 500 MiB；超过任一限制时，工具自动探测媒体、无损切片并提交多个任务，完成后按原顺序合并文本。npm 启动器会提供切片引擎，无需用户另行预处理。高级参数包括：
@@ -173,6 +175,18 @@ xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd...' --no-wait
 
 凭证字段映射、MCP/CLI 完整流程、全部 Ifasr_llm 参数、老 lfasr 兼容参数透传、批量续跑策略、结果字段和 `000002`/`100020` 等错误排查见 [IFASR 使用指南](docs/ifasr.md)。
 
+开启发音人分离时，`--speaker-output-dir` 会额外生成 `speakers.txt` 和每个发音人的独立文本；加上 `--speaker-timestamps` 后按服务返回的 `bg/ed` 输出 `[HH:MM:SS.mmm --> HH:MM:SS.mmm]` 时间戳。原始完整文本仍照常输出。MCP 结果中的 `speakers[].segments` 提供同样的起止毫秒。
+
+### 音频媒体工具
+
+```bash
+xfyun media info --input recording.wav
+xfyun media convert --input stereo.wav --output mono-16k.wav --channels 1 --sample-rate 16000
+xfyun media convert --input mono.wav --output speech-128k.mp3 --channels 2 --bitrate 128k
+```
+
+`media info` 查询采样率、声道数、编码、码率和时长；`media convert` 支持单声道/双声道互转、采样率和码率转换。转换默认不覆盖已有文件，需要显式 `--force`。MCP 对应工具为 `xfyun_media`，操作为 `info` 或 `convert`；媒体工具依赖启动器提供的 FFmpeg，存在 `ffprobe` 时优先使用，也可通过 `XFYUN_FFPROBE_PATH` 指定。
+
 ## MCP Server
 
 `xfyun-ai-mcp` 暴露：
@@ -182,6 +196,7 @@ xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd...' --no-wait
 - `xfyun_rtasr`
 - `xfyun_ifasr_submit`
 - `xfyun_ifasr_result`
+- `xfyun_media`
 
 IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先写同目录临时文件再原子提交，默认拒绝覆盖。OCR 默认从讯飞响应的 `document` 节点提取可读的 `markdown`/`sed`，不会把带坐标的完整识别树塞进 `text`；需要坐标和版面属性时传 `include_raw=true`，从 `raw` 读取原始 JSON。用户要求可视化版面类型时传 `annotate=true`，用 `annotation_types` 选择 `paragraph,title,table` 等类型或 `all`；单页会直接返回 PNG 图片和 `annotation_path`，多页返回 `annotation_paths`。多页文本结果逐页写入 NDJSON，并返回 `output_path`、`page_count`。可显式设置输出路径，不设置时使用临时文件；覆盖已有文件必须设置 `force=true`。支持 progress token 的 MCP 宿主还会收到逐页进度通知。详细参数与自然语言映射位于 [skills/xfyun-ai](skills/xfyun-ai)。
 

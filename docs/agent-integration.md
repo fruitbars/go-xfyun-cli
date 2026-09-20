@@ -155,7 +155,7 @@ Cursor、Cline、Windsurf、Continue、Zed 等只要支持本地 stdio MCP，就
 把 <HTTP(S) 音频 URL> 作为外链录音转写，并提供带后缀的文件名和准确字节数。
 ```
 
-应看到五个工具：`xfyun_ocr`、`xfyun_tts`、`xfyun_rtasr`、`xfyun_ifasr_submit`、`xfyun_ifasr_result`。本地文件路径必须对 MCP Server 所在机器可见；IFASR 外链输入由讯飞服务器通过 HTTP(S) 下载。
+应看到六个工具：`xfyun_ocr`、`xfyun_tts`、`xfyun_rtasr`、`xfyun_ifasr_submit`、`xfyun_ifasr_result`、`xfyun_media`。本地文件路径必须对 MCP Server 所在机器可见；IFASR 外链输入由讯飞服务器通过 HTTP(S) 下载。`xfyun_media` 可在转写前查询或转换本地音频的声道、采样率和码率。
 
 IFASR 普通任务必须保留 `order_id` 和 `signature_random`；自动切片任务必须保留完整 `parts` 并作为 `orders` 查询。状态 `0/3` 可以继续轮询，`4` 才表示完成，`-1` 应检查 `fail_type`。批量文件应在每次提交成功后立即保存任务标识，避免宿主中断后重复上传。详细流程和错误码见 [IFASR 使用指南](ifasr.md)。
 

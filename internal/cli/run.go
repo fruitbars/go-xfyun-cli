@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/fruitbars/go-xfyun-cli/internal/config"
 	"github.com/fruitbars/go-xfyun-cli/internal/ifasr"
+	"github.com/fruitbars/go-xfyun-cli/internal/media"
 	"github.com/fruitbars/go-xfyun-cli/internal/ocr"
 	"github.com/fruitbars/go-xfyun-cli/internal/outputfile"
 	"github.com/fruitbars/go-xfyun-cli/internal/rtasr"
@@ -39,6 +41,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return runRTASR(ctx, args[1:], stdin, stdout, stderr)
 	case "ifasr":
 		return runIFASR(ctx, args[1:], stdin, stdout, stderr)
+	case "media":
+		return runMedia(ctx, args[1:], stdout, stderr)
 	default:
 		usage(stderr)
 		return fmt.Errorf("unknown command %q", args[0])
@@ -56,9 +60,10 @@ Commands:
   tts       Synthesize speech from text
   rtasr     Stream an audio file to real-time transcription
   ifasr     Upload an audio file and wait for transcription
+  media     Probe or convert local audio media
   version   Print version
 
-Credentials (all four commands):
+Credentials (OCR, TTS, RTASR, and IFASR):
   XFYUN_APP_ID, XFYUN_API_KEY, XFYUN_API_SECRET
 
 Run "xfyun <command> --help" for command options.`)
@@ -367,6 +372,9 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	maxWait := fs.Duration("max-wait", 30*time.Minute, "maximum wait for a completed order")
 	noWait := fs.Bool("no-wait", false, "upload or query once and print machine-readable state")
 	raw := fs.Bool("raw", false, "print the complete result as JSON")
+	speakerOutputDir := fs.String("speaker-output-dir", "", "write speakers.txt and one text file per speaker")
+	speakerTimestamps := fs.Bool("speaker-timestamps", false, "include [start --> end] timestamps in speaker text files")
+	speakerForce := fs.Bool("speaker-force", false, "allow replacement of existing speaker text files")
 	var extra keyValueFlags
 	fs.Var(&extra, "param", "extra upload query parameter key=value (repeatable)")
 	fs.Usage = func() {
@@ -432,16 +440,190 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 		return err
 	}
 	if *inputPath != "" && batch.Split {
+		if *speakerOutputDir != "" && len(batch.Speakers) > 0 {
+			if err := writeSpeakerFiles(*speakerOutputDir, "", batch.Speakers, *speakerTimestamps, *speakerForce); err != nil {
+				return err
+			}
+		}
 		if *raw || *noWait {
 			return writeJSON(stdout, batch)
 		}
 		fmt.Fprintln(stdout, batch.Transcript)
 		return nil
 	}
+	if *speakerOutputDir != "" && len(result.Speakers) > 0 {
+		if err := writeSpeakerFiles(*speakerOutputDir, "", result.Speakers, *speakerTimestamps, *speakerForce); err != nil {
+			return err
+		}
+	}
 	if *raw || *noWait {
 		return writeJSON(stdout, result)
 	}
 	fmt.Fprintln(stdout, result.Transcript)
+	return nil
+}
+
+func runMedia(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, "Usage: xfyun media info --input AUDIO\n   or: xfyun media convert --input AUDIO --output AUDIO [options]")
+		return flag.ErrHelp
+	}
+	switch args[0] {
+	case "info":
+		fs := newFlagSet("media info", stderr)
+		input := fs.String("input", "", "audio file path")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *input == "" {
+			return fmt.Errorf("--input is required")
+		}
+		info, err := media.Probe(ctx, *input)
+		if err != nil {
+			return err
+		}
+		return writeJSON(stdout, info)
+	case "convert":
+		fs := newFlagSet("media convert", stderr)
+		input := fs.String("input", "", "audio file path")
+		output := fs.String("output", "", "converted audio path")
+		channels := fs.Int("channels", 0, "output channels: 1 mono or 2 stereo")
+		sampleRate := fs.Int("sample-rate", 0, "output sample rate in Hz")
+		bitrate := fs.String("bitrate", "", "output audio bitrate, such as 64k or 128k")
+		force := fs.Bool("force", false, "allow replacement of an existing output")
+		if err := fs.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *input == "" || *output == "" {
+			return fmt.Errorf("--input and --output are required")
+		}
+		absolute, temporary, err := outputfile.Prepare(*output, *force)
+		if err != nil {
+			return err
+		}
+		temporaryPath := temporary.Name()
+		if err := temporary.Close(); err != nil {
+			_ = os.Remove(temporaryPath)
+			return fmt.Errorf("close temporary media output: %w", err)
+		}
+		committed := false
+		defer func() {
+			if !committed {
+				_ = os.Remove(temporaryPath)
+			}
+		}()
+		if err := media.Convert(ctx, *input, temporaryPath, media.ConvertOptions{Channels: *channels, SampleRate: *sampleRate, Bitrate: *bitrate, Format: filepath.Ext(absolute)}); err != nil {
+			return err
+		}
+		if err := outputfile.Commit(temporaryPath, absolute, *force); err != nil {
+			return err
+		}
+		committed = true
+		info, err := media.Probe(ctx, absolute)
+		if err != nil {
+			return err
+		}
+		return writeJSON(stdout, struct {
+			OutputPath string     `json:"output_path"`
+			Info       media.Info `json:"info"`
+		}{OutputPath: absolute, Info: info})
+	default:
+		return fmt.Errorf("unknown media operation %q", args[0])
+	}
+}
+
+func writeSpeakerFiles(directory, prefix string, speakers []ifasr.SpeakerTranscript, timestamps, force bool) error {
+	if len(speakers) == 0 {
+		return fmt.Errorf("no speaker-separated transcript is available in this result")
+	}
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		return fmt.Errorf("create speaker output directory: %w", err)
+	}
+	var combined strings.Builder
+	for _, speaker := range speakers {
+		label := "speaker-" + safeFilenamePart(speaker.Speaker)
+		if speaker.Track != "" {
+			label += "-" + safeFilenamePart(speaker.Track)
+		}
+		content := formatSpeakerText(speaker, timestamps)
+		if err := writeDerivedText(filepath.Join(directory, prefix+label+".txt"), content, force); err != nil {
+			return err
+		}
+		combined.WriteString("## speaker=" + speaker.Speaker)
+		if speaker.Track != "" {
+			combined.WriteString(" track=" + speaker.Track)
+		}
+		combined.WriteString("\n")
+		combined.WriteString(content)
+		if !strings.HasSuffix(content, "\n") {
+			combined.WriteByte('\n')
+		}
+		combined.WriteByte('\n')
+	}
+	return writeDerivedText(filepath.Join(directory, prefix+"speakers.txt"), combined.String(), force)
+}
+
+func formatSpeakerText(speaker ifasr.SpeakerTranscript, timestamps bool) string {
+	if !timestamps || len(speaker.Segments) == 0 {
+		return speaker.Transcript + "\n"
+	}
+	var output strings.Builder
+	for _, segment := range speaker.Segments {
+		fmt.Fprintf(&output, "[%s --> %s] %s\n", formatMilliseconds(segment.StartMS), formatMilliseconds(segment.EndMS), segment.Transcript)
+	}
+	return output.String()
+}
+
+func formatMilliseconds(milliseconds int64) string {
+	if milliseconds < 0 {
+		milliseconds = 0
+	}
+	hours := milliseconds / (60 * 60 * 1000)
+	minutes := (milliseconds / (60 * 1000)) % 60
+	seconds := (milliseconds / 1000) % 60
+	millis := milliseconds % 1000
+	return fmt.Sprintf("%02d:%02d:%02d.%03d", hours, minutes, seconds, millis)
+}
+
+func safeFilenamePart(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "unknown"
+	}
+	var builder strings.Builder
+	for _, char := range value {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '-' || char == '_' {
+			builder.WriteRune(char)
+		} else {
+			builder.WriteByte('_')
+		}
+	}
+	return builder.String()
+}
+
+func writeDerivedText(path, content string, force bool) error {
+	absolute, temporary, err := outputfile.Prepare(path, force)
+	if err != nil {
+		return err
+	}
+	temporaryPath := temporary.Name()
+	committed := false
+	defer func() {
+		_ = temporary.Close()
+		if !committed {
+			_ = os.Remove(temporaryPath)
+		}
+	}()
+	if _, err := io.WriteString(temporary, content); err != nil {
+		return fmt.Errorf("write speaker transcript: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return fmt.Errorf("close speaker transcript: %w", err)
+	}
+	if err := outputfile.Commit(temporaryPath, absolute, force); err != nil {
+		return err
+	}
+	committed = true
 	return nil
 }
 
