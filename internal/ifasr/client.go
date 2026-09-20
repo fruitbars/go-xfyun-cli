@@ -91,12 +91,21 @@ var managedIFASRParameters = map[string]struct{}{
 }
 
 type Result struct {
-	OrderID            string   `json:"order_id"`
-	SignatureRand      string   `json:"signature_random"`
-	Status             int      `json:"status"`
-	Transcript         string   `json:"transcript,omitempty"`
-	OriginalTranscript string   `json:"original_transcript,omitempty"`
-	Response           Response `json:"response"`
+	OrderID            string              `json:"order_id"`
+	SignatureRand      string              `json:"signature_random"`
+	Status             int                 `json:"status"`
+	Transcript         string              `json:"transcript,omitempty"`
+	OriginalTranscript string              `json:"original_transcript,omitempty"`
+	Speakers           []SpeakerTranscript `json:"speakers,omitempty"`
+	Response           Response            `json:"response"`
+}
+
+// SpeakerTranscript is the processed transcript grouped by the role ID in
+// the service response. Track is populated for dual-channel trackMode=2.
+type SpeakerTranscript struct {
+	Speaker    string `json:"speaker"`
+	Track      string `json:"track,omitempty"`
+	Transcript string `json:"transcript"`
 }
 
 type Client struct {
@@ -445,6 +454,10 @@ func (c *Client) Wait(ctx context.Context, orderID, signatureRandom string, opts
 			}
 			result.Transcript = transcript
 			result.OriginalTranscript = original
+			result.Speakers, err = ExtractSpeakerTranscripts(response.Content.OrderResult)
+			if err != nil {
+				return result, err
+			}
 			return result, nil
 		case -1:
 			return result, &xfyun.APIError{Service: "IFASR", Code: strconv.Itoa(response.Content.OrderInfo.FailType), Message: "transcription order failed"}
@@ -530,6 +543,54 @@ func ExtractTranscripts(orderResult string) (string, string, error) {
 	return processed, original, nil
 }
 
+// ExtractSpeakerTranscripts groups the processed lattice text by role ID and
+// associates dual-channel roles with the service's L/R track label.
+func ExtractSpeakerTranscripts(orderResult string) ([]SpeakerTranscript, error) {
+	if orderResult == "" {
+		return nil, nil
+	}
+	var outer struct {
+		Lattice []latticeItem `json:"lattice"`
+		Label   struct {
+			RLTrack []struct {
+				RL    string `json:"rl"`
+				Track string `json:"track"`
+			} `json:"rl_track"`
+		} `json:"label"`
+	}
+	if err := json.Unmarshal([]byte(orderResult), &outer); err != nil {
+		return nil, fmt.Errorf("decode IFASR order result: %w", err)
+	}
+	tracks := make(map[string]string, len(outer.Label.RLTrack))
+	for _, item := range outer.Label.RLTrack {
+		if item.RL != "" && item.Track != "" {
+			tracks[item.RL] = item.Track
+		}
+	}
+	var speakers []SpeakerTranscript
+	indices := make(map[string]int)
+	for _, item := range outer.Lattice {
+		role, text, err := parseLatticeItem(item)
+		if err != nil {
+			return nil, err
+		}
+		if role == "" || text == "" {
+			continue
+		}
+		index, ok := indices[role]
+		if !ok {
+			index = len(speakers)
+			indices[role] = index
+			speakers = append(speakers, SpeakerTranscript{Speaker: role, Track: tracks[role]})
+		}
+		if speakers[index].Transcript != "" {
+			speakers[index].Transcript += "\n"
+		}
+		speakers[index].Transcript += text
+	}
+	return speakers, nil
+}
+
 type latticeItem struct {
 	// The service returns json_1best inconsistently: older responses encode the
 	// nested JSON as a string, while newer lattice2 responses may embed it as an
@@ -540,40 +601,51 @@ type latticeItem struct {
 func extractLattice(latticeItems []latticeItem) (string, error) {
 	var transcript strings.Builder
 	for _, lattice := range latticeItems {
-		bestJSON := bytes.TrimSpace(lattice.Best)
-		if len(bestJSON) == 0 || bytes.Equal(bestJSON, []byte("null")) {
-			continue
+		_, text, err := parseLatticeItem(lattice)
+		if err != nil {
+			return "", err
 		}
-		if bestJSON[0] == '"' {
-			var encoded string
-			if err := json.Unmarshal(bestJSON, &encoded); err != nil {
-				return "", fmt.Errorf("decode IFASR segment string: %w", err)
-			}
-			bestJSON = []byte(encoded)
+		transcript.WriteString(text)
+	}
+	return transcript.String(), nil
+}
+
+func parseLatticeItem(lattice latticeItem) (string, string, error) {
+	bestJSON := bytes.TrimSpace(lattice.Best)
+	if len(bestJSON) == 0 || bytes.Equal(bestJSON, []byte("null")) {
+		return "", "", nil
+	}
+	if bestJSON[0] == '"' {
+		var encoded string
+		if err := json.Unmarshal(bestJSON, &encoded); err != nil {
+			return "", "", fmt.Errorf("decode IFASR segment string: %w", err)
 		}
-		var best struct {
-			ST struct {
-				RT []struct {
-					WS []struct {
-						CW []struct {
-							Word string `json:"w"`
-						} `json:"cw"`
-					} `json:"ws"`
-				} `json:"rt"`
-			} `json:"st"`
-		}
-		if err := json.Unmarshal(bestJSON, &best); err != nil {
-			return "", fmt.Errorf("decode IFASR segment: %w", err)
-		}
-		for _, rt := range best.ST.RT {
-			for _, ws := range rt.WS {
-				if len(ws.CW) > 0 {
-					transcript.WriteString(ws.CW[0].Word)
-				}
+		bestJSON = []byte(encoded)
+	}
+	var best struct {
+		ST struct {
+			RL string `json:"rl"`
+			RT []struct {
+				WS []struct {
+					CW []struct {
+						Word string `json:"w"`
+					} `json:"cw"`
+				} `json:"ws"`
+			} `json:"rt"`
+		} `json:"st"`
+	}
+	if err := json.Unmarshal(bestJSON, &best); err != nil {
+		return "", "", fmt.Errorf("decode IFASR segment: %w", err)
+	}
+	var transcript strings.Builder
+	for _, rt := range best.ST.RT {
+		for _, ws := range rt.WS {
+			if len(ws.CW) > 0 {
+				transcript.WriteString(ws.CW[0].Word)
 			}
 		}
 	}
-	return transcript.String(), nil
+	return best.ST.RL, transcript.String(), nil
 }
 
 func randomString(length int) (string, error) {

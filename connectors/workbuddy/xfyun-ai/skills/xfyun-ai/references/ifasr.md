@@ -17,6 +17,8 @@
 
 `transcript` 是 `lattice` 的处理后文本；服务返回 `lattice2` 时，`original_transcript` 是原始文本。需要去除“嗯、啊、呃”和重复口癖时使用 `smooth=false, colloquial=true`。设置 `include_raw=true` 后，`raw_result` 返回 `orderResult`，`raw_response` 保留完整服务响应，用于角色编号、词级时间、双声道 `label.rl_track`、语种分析或其他未结构化字段。
 
+结构化结果还提供 `speakers`：按 `st.rl` 聚合的处理后文本，每项包含 `speaker`、`transcript`；`track_mode=2` 时还包含 `track=L/R`。用户要求分别返回发音人时直接使用 `speakers`，完整时序文本仍在 `transcript`。
+
 服务可能把 `json_1best` 返回为 JSON 字符串或直接嵌入的对象，客户端会兼容两种形式。批量处理时，每次提交成功后立即持久化任务标识，以便中断后续跑而不重复上传和计费。
 
 ## 排障

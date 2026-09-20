@@ -180,7 +180,7 @@ XFYUN_API_SECRET
 
 普通转写使用 `result_type="transfer"`。语种分析使用 `analysis`，两者都需要时使用 `transfer,analysis` 并设置 `include_raw=true`。
 
-MCP 结构化结果还返回 `fail_type`、`language`、`original_duration_ms`、`expire_time` 和 `task_estimate_time_ms`。`transcript` 来自服务的 `lattice`，通常是顺滑或口语规整后的文本；服务返回 `lattice2` 时，`original_transcript` 保留原始识别文本。讯飞实际响应中的 `json_1best` 可能是 JSON 字符串，也可能直接是对象，客户端会自动兼容两种形式。
+MCP 结构化结果还返回 `fail_type`、`language`、`original_duration_ms`、`expire_time`、`task_estimate_time_ms` 和 `speakers`。`speakers` 按 `st.rl` 聚合处理后文本，每项包含 `speaker`、`transcript`；双声道 `trackMode=2` 时还包含 `track`（`L` 或 `R`）。`transcript` 来自服务的 `lattice`，通常是顺滑或口语规整后的文本；服务返回 `lattice2` 时，`original_transcript` 保留原始识别文本。讯飞实际响应中的 `json_1best` 可能是 JSON 字符串，也可能直接是对象，客户端会自动兼容两种形式。
 
 服务响应字段完整对照：
 
@@ -210,6 +210,8 @@ MCP 结构化结果还返回 `fail_type`、`language`、`original_duration_ms`�
 - `ws.wb/we`：相对 `st.bg` 的词帧位置，每帧 10 ms
 - `cw.w`：文本；`cw.wp`：`n` 正常、`s` 顺滑、`p` 标点、`g` 分段
 - `label.rl_track[].rl/track`：双声道角色与 `L/R` 声道映射
+
+因此 Agent 不需要自行解析 `raw_response` 才能分别使用发音人文本：直接读取 `speakers` 即可。`transcript` 仍保留按时间顺序合并的完整文本。
 
 `fail_type`：`0` 正常，`1` 上传失败，`2` 转码失败，`3` 识别失败，`4` 时长超限，`5` 时长校验失败，`6` 静音，`7` 翻译失败，`8` 无翻译权限，`9` 质检失败，`10` 质检关键词未匹配，`11` 未开通请求的翻译/质检能力，`12` 语种分析失败，`99` 其他。
 
@@ -266,6 +268,8 @@ xfyun ifasr --input meeting.wav --role-type 1 --role-num 2
 xfyun ifasr --input stereo.wav --track-mode 2 --raw
 ```
 
+CLI 的 `--raw` 结果也包含 `speakers`。若只需要某一发音人，可按 `speaker` 或 `track` 从该数组取出对应文本。
+
 外链提交：
 
 ```bash
@@ -314,6 +318,6 @@ xfyun ifasr \
 
 ## 实测基线
 
-项目已用 8 kHz、16 bit、单声道 WAV 批量验证：14 个文件、累计约 30 分钟，全部返回状态 `4`，无失败和空文本。自动化测试同时覆盖文件流生命周期、URL 外链参数与空请求体、`trackMode`、正式领域值、老参数兼容透传、字符串/对象两种 `json_1best`、原始 `lattice2`、空片段以及损坏片段报错。
+项目已用 8 kHz、16 bit、单声道 WAV 批量验证 `role_type=1, role_num=2`：14 个文件、累计约 30 分钟，全部返回状态 `4`，每个结果均出现角色 `1` 和 `2`。另用 20 个双声道 WAV（累计约 1368 秒）验证 `trackMode=2`，全部返回状态 `4`，每个结果均包含非空的 `L/R` 两组 `speakers` 文本；双声道时不要假设 `speaker` 从 1 开始，应以服务返回的 `speaker + track` 为准。自动化测试同时覆盖文件流生命周期、URL 外链参数与空请求体、`trackMode`、正式领域值、老参数兼容透传、角色文本聚合、字符串/对象两种 `json_1best`、原始 `lattice2`、空片段以及损坏片段报错。
 
 官方接口文档：[录音文件转写大模型](https://www.xfyun.cn/doc/spark/asr_llm/Ifasr_llm.html)

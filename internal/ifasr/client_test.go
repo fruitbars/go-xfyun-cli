@@ -46,6 +46,23 @@ func TestExtractTranscriptsAcceptsObjectAndStringSegments(t *testing.T) {
 	}
 }
 
+func TestExtractSpeakerTranscriptsGroupsRolesAndTracks(t *testing.T) {
+	orderResult := `{"lattice":[{"json_1best":"{\"st\":{\"rl\":\"1\",\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"左声道\"}]}]}]}}"},{"json_1best":{"st":{"rl":"2","rt":[{"ws":[{"cw":[{"w":"右声道"}]}]}]}}},{"json_1best":"{\"st\":{\"rl\":\"1\",\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"继续\"}]}]}]}}"}],"label":{"rl_track":[{"rl":"1","track":"L"},{"rl":"2","track":"R"}]}}`
+	speakers, err := ExtractSpeakerTranscripts(orderResult)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(speakers) != 2 {
+		t.Fatalf("speakers = %+v", speakers)
+	}
+	if speakers[0].Speaker != "1" || speakers[0].Track != "L" || speakers[0].Transcript != "左声道\n继续" {
+		t.Fatalf("speaker 1 = %+v", speakers[0])
+	}
+	if speakers[1].Speaker != "2" || speakers[1].Track != "R" || speakers[1].Transcript != "右声道" {
+		t.Fatalf("speaker 2 = %+v", speakers[1])
+	}
+}
+
 func TestExtractTranscriptsSkipsMissingAndNullSegments(t *testing.T) {
 	orderResult := `{"lattice":[{}, {"json_1best":null}, {"json_1best":{"st":{"rt":[{"ws":[{"cw":[]},{"cw":[{"w":"保留"}]}]}]}}}]}`
 	processed, original, err := ExtractTranscripts(orderResult)
@@ -69,7 +86,7 @@ func TestExtractTranscriptsRejectsMalformedSegments(t *testing.T) {
 }
 
 func TestWaitParsesCompletedResponseWithObjectLattice(t *testing.T) {
-	orderResult := `{"lattice":[{"json_1best":"{\"st\":{\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"处理后\"}]}]}]}}"}],"lattice2":[{"json_1best":{"st":{"rt":[{"ws":[{"cw":[{"w":"原始"}]}]}]}}}]}`
+	orderResult := `{"lattice":[{"json_1best":"{\"st\":{\"rl\":\"1\",\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"处理后\"}]}]}]}}"}],"lattice2":[{"json_1best":{"st":{"rt":[{"ws":[{"cw":[{"w":"原始"}]}]}]}}}]}`
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v2/getResult" {
 			t.Fatalf("path = %q", r.URL.Path)
@@ -119,6 +136,9 @@ func TestWaitParsesCompletedResponseWithObjectLattice(t *testing.T) {
 	}
 	if result.Status != 4 || result.Transcript != "处理后" || result.OriginalTranscript != "原始" {
 		t.Fatalf("result = %+v", result)
+	}
+	if len(result.Speakers) != 1 || result.Speakers[0].Speaker != "1" || result.Speakers[0].Transcript != "处理后" {
+		t.Fatalf("speakers = %+v", result.Speakers)
 	}
 }
 

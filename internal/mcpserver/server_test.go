@@ -65,7 +65,7 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, field := range []string{`"expire_time"`, `"task_estimate_time_ms"`, `"raw_response"`} {
+			for _, field := range []string{`"expire_time"`, `"task_estimate_time_ms"`, `"raw_response"`, `"speakers"`} {
 				if !strings.Contains(string(outputSchema), field) {
 					t.Fatalf("IFASR result output schema does not expose %s: %s", field, outputSchema)
 				}

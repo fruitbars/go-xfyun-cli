@@ -36,6 +36,8 @@ Status `0` means created, `3` processing, `4` complete, and `-1` failed. Use `wa
 
 Set `include_raw=true` when speaker IDs, word timing, stereo `label.rl_track`, or other detailed fields are needed. `raw_result` contains `orderResult`; `raw_response` preserves the complete service response, including reserved future result fields.
 
+The result also includes `speakers`, grouping processed text by the service-returned speaker ID. With `track_mode=2`, each entry includes `track` (`L` or `R`), so agents can return each channel separately without parsing raw JSON. Do not assume speaker IDs start at 1; use the returned `speaker` value together with `track`.
+
 The default language mode is `autodialect` (Chinese, English, and dialects); `autominor` enables multilingual recognition when that capability is intended. Domain values are validated against XFYun's complete list. Legacy lfasr parameters such as `eng_max_clusters` and `eng_min_clusters` are accepted through `extra` for engine compatibility and forwarded unchanged; new integrations should prefer `role_type` and `role_num`. The client accepts XFYun's observed `json_1best` variants whether the nested JSON is returned as a string or an object.
 
 Common setup errors:
