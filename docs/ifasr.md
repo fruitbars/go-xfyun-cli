@@ -193,6 +193,8 @@ signa = Base64(HMAC-SHA1(MD5(appId + ts), XFYUN_API_SECRET))
 
 宿主工具超时较短时使用 `wait=false` 只查询一次，并在后续回合继续使用原来的两个标识。自动切片任务把提交结果中的 `parts` 转成同顺序的 `orders`：
 
+支持 progress token 的 MCP 宿主会收到分片准备、提交和轮询状态通知；CLI 将这些进度写到 stderr。进度表示工作流步骤，不是音频时长百分比。宿主不支持通知或单次调用时间较短时，优先使用 `wait=false`，保存全部订单标识后分回合查询，不要重复提交。
+
 ```json
 {
   "orders": [

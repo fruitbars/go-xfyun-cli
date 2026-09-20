@@ -34,6 +34,8 @@ The submit tool accepts either local `input_path`, or `audio_url` together with 
 
 Status `0` means created, `3` processing, `4` complete, and `-1` failed. Use `wait=false` for one status check when the MCP host has a short timeout. For batches, save each order reference immediately after submission so an interrupted run can resume without a duplicate upload.
 
+Hosts that provide an MCP progress token receive progress notifications for TTS segments and IFASR part submission/polling. Hosts without progress support should use the returned output paths, `wait=false`, and saved order references to resume long work safely.
+
 Set `include_raw=true` when speaker IDs, word timing, stereo `label.rl_track`, or other detailed fields are needed. `raw_result` contains `orderResult`; `raw_response` preserves the complete service response, including reserved future result fields.
 
 The result also includes `speakers`, grouping processed text by the service-returned speaker ID. Each entry includes `transcript` and, when the service reports `st.bg/ed`, timestamped `segments` with `start_ms`, `end_ms`, and `transcript`. With `track_mode=2`, each entry includes `track` (`L` or `R`), so agents can return each channel separately without parsing raw JSON. Do not assume speaker IDs start at 1; use the returned `speaker` value together with `track`.

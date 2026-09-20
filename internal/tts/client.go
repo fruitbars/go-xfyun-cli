@@ -39,6 +39,9 @@ type Options struct {
 	ReturnPronounce   int
 	VisibleWatermark  int
 	ImplicitWatermark bool
+	// Progress is called after each text segment is synthesized. It is kept
+	// optional so library callers that do not need progress remain unchanged.
+	Progress func(done, total int, message string)
 }
 
 type Metadata struct {
@@ -119,6 +122,9 @@ func (c *Client) Synthesize(ctx context.Context, text string, output io.Writer, 
 		metadata.Bytes += part.Bytes
 		if part.Pronunciation != "" {
 			pronunciations = append(pronunciations, part.Pronunciation)
+		}
+		if opts.Progress != nil {
+			opts.Progress(index+1, len(segments), fmt.Sprintf("TTS segment %d of %d completed", index+1, len(segments)))
 		}
 	}
 	metadata.Pronunciation = strings.Join(pronunciations, "\n")

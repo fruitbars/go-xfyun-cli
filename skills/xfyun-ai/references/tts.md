@@ -2,6 +2,8 @@
 
 Use `xfyun_tts` with exactly one of `text` or `text_path`, and always set `output_path`. Each service session accepts at most 64 KiB of UTF-8 text; the tool automatically splits longer input at sentence and UTF-8-safe boundaries and writes all audio to one output. Clean tabs, emoji, invisible characters, and HTML/Markdown control syntax when they are accidental; ask before changing meaningful content.
 
+When the host provides an MCP progress token, report the TTS segment notifications to the user. The CLI writes the same progress to stderr; keep the generated audio path and final metadata as the authoritative result.
+
 ## Map user intent to arguments
 
 - MP3: `encoding="lame"` (default). PCM: `encoding="raw"`. These are the provider-recommended formats.

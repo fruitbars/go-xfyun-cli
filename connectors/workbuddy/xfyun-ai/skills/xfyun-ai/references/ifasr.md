@@ -19,6 +19,8 @@
 
 结果状态：`0` 已创建、`3` 处理中、`4` 完成、`-1` 失败。普通转写用 `result_type="transfer"`；语种分析用 `analysis`；两者都要用 `transfer,analysis`。分析结果需同时设置 `include_raw=true`。
 
+WorkBuddy 若提供 MCP progress token，会收到分片准备、提交和轮询状态通知；进度表示工作流步骤而非音频时长百分比。宿主超时较短或不支持通知时，使用 `wait=false`，保存全部订单标识后续跑，避免重复提交。
+
 `transcript` 是 `lattice` 的处理后文本；服务返回 `lattice2` 时，`original_transcript` 是原始文本。需要去除“嗯、啊、呃”和重复口癖时使用 `smooth=false, colloquial=true`。设置 `include_raw=true` 后，`raw_result` 返回 `orderResult`，`raw_response` 保留完整服务响应，用于角色编号、词级时间、双声道 `label.rl_track`、语种分析或其他未结构化字段。
 
 结构化结果还提供 `speakers`：按 `st.rl` 聚合的处理后文本，每项包含 `speaker`、`transcript`，以及可用时的 `segments[{start_ms,end_ms,transcript}]`；`track_mode=2` 时还包含 `track=L/R`。用户要求分别返回发音人时直接使用 `speakers`，完整时序文本仍在 `transcript`。CLI 后备模式可用 `--speaker-output-dir` 写出汇总和逐发音人文本，`--speaker-timestamps` 加入时间戳。

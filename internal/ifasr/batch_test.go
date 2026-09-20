@@ -67,12 +67,21 @@ func TestTranscribeFileClosesInputExactlyOnce(t *testing.T) {
 		Credentials: config.Credentials{AppID: "app", APIKey: "key", APISecret: "secret"},
 		Endpoint:    server.URL,
 	}
-	result, err := client.TranscribeFile(context.Background(), input, Options{DurationMS: 1000, NoWait: true})
+	var progress []string
+	result, err := client.TranscribeFile(context.Background(), input, Options{
+		DurationMS: 1000, NoWait: true,
+		Progress: func(done, total int, message string) {
+			progress = append(progress, fmt.Sprintf("%d/%d %s", done, total, message))
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(result.Parts) != 1 || result.Parts[0].Result.OrderID != "test-order" {
 		t.Fatalf("result = %+v", result)
+	}
+	if len(progress) != 2 || progress[len(progress)-1] != "1/1 IFASR part 1 of 1 submitted" {
+		t.Fatalf("progress = %#v", progress)
 	}
 }
 

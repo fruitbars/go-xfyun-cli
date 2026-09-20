@@ -92,6 +92,9 @@ type Options struct {
 	Extra           map[string]string
 	NoWait          bool
 	SignatureRand   string
+	// Progress is called as an order moves through submission and polling.
+	// done/total are best-effort workflow steps, not media percentages.
+	Progress func(done, total int, message string)
 }
 
 var supportedDomains = map[string]struct{}{
@@ -680,6 +683,9 @@ func (c *Client) Wait(ctx context.Context, orderID, signatureRandom string, opts
 		}
 		result.Response = response
 		result.Status = response.Content.OrderInfo.Status
+		if opts.Progress != nil {
+			opts.Progress(0, 1, fmt.Sprintf("IFASR order %s status %d", orderID, result.Status))
+		}
 		switch result.Status {
 		case 4:
 			transcript, original, err := ExtractTranscripts(response.Content.OrderResult)
@@ -691,6 +697,9 @@ func (c *Client) Wait(ctx context.Context, orderID, signatureRandom string, opts
 			result.Speakers, err = ExtractSpeakerTranscripts(response.Content.OrderResult)
 			if err != nil {
 				return result, err
+			}
+			if opts.Progress != nil {
+				opts.Progress(1, 1, fmt.Sprintf("IFASR order %s completed", orderID))
 			}
 			return result, nil
 		case -1:

@@ -52,6 +52,13 @@ func (c *Client) TranscribeFile(ctx context.Context, inputPath string, opts Opti
 	defer cleanup()
 
 	batch := BatchResult{Split: split, Parts: make([]BatchPart, 0, len(parts))}
+	workflowTotal := len(parts)
+	if !opts.NoWait {
+		workflowTotal *= 2
+	}
+	if opts.Progress != nil {
+		opts.Progress(0, workflowTotal, fmt.Sprintf("IFASR prepared %d audio part(s)", len(parts)))
+	}
 	for index, part := range parts {
 		file, err := os.Open(part.path)
 		if err != nil {
@@ -74,6 +81,9 @@ func (c *Client) TranscribeFile(ctx context.Context, inputPath string, opts Opti
 		batch.Parts = append(batch.Parts, BatchPart{
 			Index: index + 1, Size: part.size, DurationMS: part.durationMS, Result: result,
 		})
+		if opts.Progress != nil {
+			opts.Progress(index+1, workflowTotal, fmt.Sprintf("IFASR part %d of %d submitted", index+1, len(parts)))
+		}
 	}
 	if opts.NoWait {
 		return batch, nil
@@ -82,7 +92,13 @@ func (c *Client) TranscribeFile(ctx context.Context, inputPath string, opts Opti
 	transcripts := make([]string, 0, len(batch.Parts))
 	var speakers []SpeakerTranscript
 	for index := range batch.Parts {
-		result, err := c.Wait(ctx, batch.Parts[index].Result.OrderID, batch.Parts[index].Result.SignatureRand, opts)
+		waitOptions := opts
+		if opts.Progress != nil {
+			waitOptions.Progress = func(done, _ int, message string) {
+				opts.Progress(len(parts)+index+done, workflowTotal, fmt.Sprintf("IFASR part %d of %d: %s", index+1, len(parts), message))
+			}
+		}
+		result, err := c.Wait(ctx, batch.Parts[index].Result.OrderID, batch.Parts[index].Result.SignatureRand, waitOptions)
 		if err != nil {
 			return batch, fmt.Errorf("wait for IFASR part %d/%d: %w", index+1, len(batch.Parts), err)
 		}

@@ -25,6 +25,8 @@ For `variant="standard"`, the default language is `cn` and authentication uses `
 
 Use `wait=false` for one status check when host timeouts are short. Status `0` means created, `3` processing, `4` complete, and `-1` failed.
 
+Hosts with an MCP progress token receive progress for part preparation, submission, and polling. Treat it as workflow-step progress rather than an audio-duration percentage. Without progress support, use `wait=false`, persist every order reference, and resume later instead of resubmitting.
+
 - Ordinary transcript: `result_type="transfer"`.
 - Language analysis only: `result_type="analysis"` and `include_raw=true`.
 - Both: `result_type="transfer,analysis"` and `include_raw=true`.

@@ -3,6 +3,7 @@ package ifasr
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -134,7 +135,13 @@ func TestWaitParsesCompletedResponseWithObjectLattice(t *testing.T) {
 		Credentials: config.Credentials{AppID: "app", APIKey: "key", APISecret: "secret"},
 		Endpoint:    server.URL,
 	}
-	result, err := client.Wait(context.Background(), "test-order", "test-random", Options{MaxWait: time.Second})
+	var progress []string
+	result, err := client.Wait(context.Background(), "test-order", "test-random", Options{
+		MaxWait: time.Second,
+		Progress: func(done, total int, message string) {
+			progress = append(progress, fmt.Sprintf("%d/%d %s", done, total, message))
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,6 +150,9 @@ func TestWaitParsesCompletedResponseWithObjectLattice(t *testing.T) {
 	}
 	if len(result.Speakers) != 1 || result.Speakers[0].Speaker != "1" || result.Speakers[0].Transcript != "处理后" {
 		t.Fatalf("speakers = %+v", result.Speakers)
+	}
+	if len(progress) != 2 || progress[0] != "0/1 IFASR order test-order status 4" || progress[1] != "1/1 IFASR order test-order completed" {
+		t.Fatalf("progress = %#v", progress)
 	}
 }
 

@@ -27,6 +27,25 @@ type Service struct {
 
 const maxEmbeddedOCRAnnotationBytes = 8 * 1024 * 1024
 
+func notifyProgress(ctx context.Context, req *mcp.CallToolRequest, progress, total float64, message string) {
+	if req == nil || req.Params == nil || req.Session == nil {
+		return
+	}
+	token := req.Params.GetProgressToken()
+	if token == nil {
+		return
+	}
+	params := &mcp.ProgressNotificationParams{
+		ProgressToken: token,
+		Progress:      progress,
+		Message:       message,
+	}
+	if total > 0 {
+		params.Total = total
+	}
+	_ = req.Session.NotifyProgress(ctx, params)
+}
+
 func New(credentials config.Credentials) *mcp.Server {
 	service := &Service{credentials: credentials}
 	server := mcp.NewServer(&mcp.Implementation{
@@ -35,7 +54,7 @@ func New(credentials config.Credentials) *mcp.Server {
 		Description: "OCR, speech synthesis, and speech transcription through XFYun large-model APIs",
 		Version:     version.Current,
 	}, &mcp.ServerOptions{
-		Instructions: "XFYun media tools: use xfyun_ocr for document images, xfyun_tts for super-smart large-model speech synthesis, xfyun_rtasr for live-style PCM/Opus/Speex streams, and xfyun_ifasr_submit plus xfyun_ifasr_result for completed recordings. IFASR defaults to the Spark large-model variant; set variant=standard for the standard recording transcription API. Standard orders need only order_id; large-model orders need order_id plus signature_random. Use xfyun_media to inspect or convert local audio channels, sample rates, and bitrates. Use OCR annotate=true only when the user asks for layout types drawn on the source. Multi-page OCR returns an NDJSON output_path; consume it incrementally instead of loading the entire file. Preserve IFASR identifiers and poll with wait=false when the host has short timeouts. Credentials come from XFYUN_APP_ID, XFYUN_API_KEY, and XFYUN_API_SECRET. File paths are local to this server process. Never overwrite OCR, TTS, or media output unless the user authorized force=true.",
+		Instructions: "XFYun media tools: use xfyun_ocr for document images, xfyun_tts for super-smart large-model speech synthesis, xfyun_rtasr for live-style PCM/Opus/Speex streams, and xfyun_ifasr_submit plus xfyun_ifasr_result for completed recordings. IFASR defaults to the Spark large-model variant; set variant=standard for the standard recording transcription API. Standard orders need only order_id; large-model orders need order_id plus signature_random. Use xfyun_media to inspect or convert local audio channels, sample rates, and bitrates. Use OCR annotate=true only when the user asks for layout types drawn on the source. Multi-page OCR returns an NDJSON output_path; consume it incrementally instead of loading the entire file. Long OCR, TTS, and IFASR work reports MCP progress when the caller supplies a progress token; preserve IFASR identifiers and poll with wait=false when the host has short timeouts. Credentials come from XFYUN_APP_ID, XFYUN_API_KEY, and XFYUN_API_SECRET. File paths are local to this server process. Never overwrite OCR, TTS, or media output unless the user authorized force=true.",
 	})
 
 	addOCRTool(server, service)
@@ -383,7 +402,7 @@ func addTTSTool(server *mcp.Server, service *Service) {
 		Title:       "Synthesize speech",
 		Description: "Synthesize text with XFYun super smart TTS and atomically write audio to a local output path.",
 		Annotations: annotations(false, true, true),
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, input TTSInput) (*mcp.CallToolResult, TTSOutput, error) {
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input TTSInput) (*mcp.CallToolResult, TTSOutput, error) {
 		text, err := resolveText(input.Text, input.TextPath)
 		if err != nil {
 			return nil, TTSOutput{}, err
@@ -440,6 +459,9 @@ func addTTSTool(server *mcp.Server, service *Service) {
 			BackgroundSound: intValue(input.BackgroundSound, 0), EnglishReading: intValue(input.EnglishReading, 0),
 			NumberReading: intValue(input.NumberReading, 0), ReturnPronounce: intValue(input.ReturnPronounce, 0),
 			VisibleWatermark: intValue(input.VisibleWatermark, 0), ImplicitWatermark: input.ImplicitWatermark,
+			Progress: func(done, total int, message string) {
+				notifyProgress(ctx, req, float64(done), float64(total), message)
+			},
 		})
 		if err != nil {
 			return nil, TTSOutput{}, err
@@ -574,7 +596,7 @@ func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 		Title:       "Submit recording transcription",
 		Description: "Submit a local or HTTP(S) recording, automatically split over-limit local files, and return one or more orders needed to query transcription.",
 		Annotations: annotations(false, false, true),
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, input IFASRSubmitInput) (*mcp.CallToolResult, IFASRSubmitOutput, error) {
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input IFASRSubmitInput) (*mcp.CallToolResult, IFASRSubmitOutput, error) {
 		client := ifasr.Client{Credentials: service.credentials}
 		opts := ifasr.Options{
 			Variant:  ifasr.Variant(input.Variant),
@@ -586,6 +608,9 @@ func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 			LanguageType: input.LanguageType, TransLanguage: input.TranslationLanguage, TransMode: input.TranslationMode,
 			EngSegMax: input.SegmentMax, EngSegMin: input.SegmentMin, EngSegWeight: input.SegmentWeight, VADMargin: input.VADMargin,
 			Extra: input.Extra, NoWait: true,
+		}
+		opts.Progress = func(done, total int, message string) {
+			notifyProgress(ctx, req, float64(done), float64(total), message)
 		}
 		if opts.Variant != "" && opts.Variant != ifasr.VariantLLM && opts.Variant != ifasr.VariantStandard {
 			return nil, IFASRSubmitOutput{}, fmt.Errorf("variant must be llm or standard")
@@ -603,6 +628,7 @@ func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 			if err != nil {
 				return nil, IFASRSubmitOutput{}, err
 			}
+			notifyProgress(ctx, req, 1, 1, "IFASR remote recording submitted")
 			return nil, IFASRSubmitOutput{
 				OrderID: result.OrderID, SignatureRandom: result.SignatureRand,
 				TaskEstimateTime: result.Response.Content.TaskEstimateTime,
@@ -699,7 +725,7 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 		Title:       "Get file transcription result",
 		Description: "Query once or wait for one or more asynchronous recording transcription orders and merge split transcripts in order.",
 		Annotations: annotations(true, false, true),
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, input IFASRResultInput) (*mcp.CallToolResult, IFASRResultOutput, error) {
+	}, func(ctx context.Context, req *mcp.CallToolRequest, input IFASRResultInput) (*mcp.CallToolResult, IFASRResultOutput, error) {
 		variant := ifasr.Variant(input.Variant)
 		if variant == "" {
 			variant = ifasr.VariantLLM
@@ -746,7 +772,7 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 			if variant == ifasr.VariantStandard && order.SignatureRandom != "" {
 				return nil, IFASRResultOutput{}, fmt.Errorf("orders[%d] for standard variant must not include signature_random", index)
 			}
-			part, err := queryIFASRPart(ctx, &client, order, input)
+			part, err := queryIFASRPart(ctx, req, &client, order, input, index, len(orders))
 			if err != nil {
 				return nil, IFASRResultOutput{}, fmt.Errorf("query IFASR part %d/%d: %w", index+1, len(orders), err)
 			}
@@ -793,13 +819,16 @@ func aggregateIFASRStatus(current, next int) int {
 	return current
 }
 
-func queryIFASRPart(ctx context.Context, client *ifasr.Client, order IFASROrderRef, input IFASRResultInput) (IFASRPartResult, error) {
+func queryIFASRPart(ctx context.Context, req *mcp.CallToolRequest, client *ifasr.Client, order IFASROrderRef, input IFASRResultInput, index, total int) (IFASRPartResult, error) {
 	var result ifasr.Result
 	if input.Wait {
 		var err error
 		result, err = client.Wait(ctx, order.OrderID, order.SignatureRandom, ifasr.Options{
 			Variant: client.Variant, ResultType: input.ResultType, PollInterval: time.Duration(input.PollSeconds) * time.Second,
 			MaxWait: time.Duration(input.MaxWaitSeconds) * time.Second,
+			Progress: func(done, _ int, message string) {
+				notifyProgress(ctx, req, float64(index+done), float64(total), fmt.Sprintf("IFASR part %d of %d: %s", index+1, total, message))
+			},
 		})
 		if err != nil {
 			return IFASRPartResult{}, err
@@ -810,6 +839,7 @@ func queryIFASRPart(ctx context.Context, client *ifasr.Client, order IFASROrderR
 			return IFASRPartResult{}, err
 		}
 		result = ifasr.Result{OrderID: order.OrderID, SignatureRand: order.SignatureRandom, Status: response.Content.OrderInfo.Status, Response: response}
+		notifyProgress(ctx, req, float64(index+1), float64(total), fmt.Sprintf("IFASR part %d of %d checked", index+1, total))
 		if result.Status == 4 {
 			result.Transcript, result.OriginalTranscript, err = ifasr.ExtractTranscripts(response.Content.OrderResult)
 			if err != nil {

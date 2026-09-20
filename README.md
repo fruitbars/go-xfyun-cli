@@ -207,6 +207,8 @@ xfyun media convert --input mono.wav --output speech-128k.mp3 --channels 2 --bit
 
 IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先写同目录临时文件再原子提交，默认拒绝覆盖。OCR 默认从讯飞响应的 `document` 节点提取可读的 `markdown`/`sed`，不会把带坐标的完整识别树塞进 `text`；需要坐标和版面属性时传 `include_raw=true`，从 `raw` 读取原始 JSON。用户要求可视化版面类型时传 `annotate=true`，用 `annotation_types` 选择 `paragraph,title,table` 等类型或 `all`；单页会直接返回 PNG 图片和 `annotation_path`，多页返回 `annotation_paths`。多页文本结果逐页写入 NDJSON，并返回 `output_path`、`page_count`。可显式设置输出路径，不设置时使用临时文件；覆盖已有文件必须设置 `force=true`。支持 progress token 的 MCP 宿主还会收到逐页进度通知。详细参数与自然语言映射位于 [skills/xfyun-ai](skills/xfyun-ai)。
 
+长任务的进度通知也覆盖 TTS 分段和 IFASR 的分片提交/轮询；CLI 将进度写入 stderr，stdout 仍保持机器可读结果。MCP 宿主需要在调用中提供 progress token 才会收到通知；不支持通知的宿主仍可使用 OCR 的 NDJSON、IFASR 的 `wait=false` 和任务标识续跑策略。
+
 通用 stdio 配置：
 
 ```json

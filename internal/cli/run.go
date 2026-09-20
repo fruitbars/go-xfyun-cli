@@ -254,6 +254,9 @@ func runTTS(ctx context.Context, args []string, stdin io.Reader, stdout, stderr 
 		BackgroundSound: *backgroundSound, EnglishReading: *englishReading,
 		NumberReading: *numberReading, ReturnPronounce: *returnPronounce,
 		VisibleWatermark: *visibleWatermark, ImplicitWatermark: *implicitWatermark,
+		Progress: func(done, total int, message string) {
+			fmt.Fprintf(stderr, "[%d/%d] %s\n", done, total, message)
+		},
 	})
 	if err != nil {
 		return err
@@ -447,6 +450,9 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 		EngSegMax: *engSegMax, EngSegMin: *engSegMin, EngSegWeight: *engSegWeight, VADMargin: *vadMargin,
 		ResultType: *resultType, PollInterval: *pollInterval, MaxWait: *maxWait,
 		Extra: extra, NoWait: *noWait, SignatureRand: *signatureRandom,
+		Progress: func(done, total int, message string) {
+			fmt.Fprintf(stderr, "[%d/%d] %s\n", done, total, message)
+		},
 	}
 	var result ifasr.Result
 	var batch ifasr.BatchResult

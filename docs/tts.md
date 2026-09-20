@@ -111,6 +111,8 @@ ffmpeg -f s16le -ar 16000 -ac 1 -i speech.pcm speech.wav
 
 返回的 `segments` 是实际分段数，`sids` 保存每段 SID，`sid` 是第一段 SID。长文本优先使用 MP3 或 PCM；裸 Opus/Speex 的跨会话拼接不保证能被通用播放器直接消费。
 
+支持 progress token 的 MCP 宿主会在每个分段完成后收到 `TTS segment N of M completed` 通知。CLI 将相同信息写到 stderr，合成音频和最终 JSON 结果仍写到原来的输出位置。
+
 ## 输出和覆盖安全
 
 合成结果先写入目标目录中的临时文件，全部成功后再原子提交。任何分段失败都不会留下半成品目标文件。已有文件默认拒绝覆盖，只有用户明确授权替换该文件时才设置 `force=true`。

@@ -1,5 +1,7 @@
 # TTS 参数
 
+长文本会按 64 KiB 限制自动分段。WorkBuddy 若提供 MCP progress token，会在每个合成分段完成后收到进度；最终以输出文件和返回元数据为准。
+
 `xfyun_tts` 必须设置 `output_path`，并且在 `text` 与 `text_path` 中二选一。讯飞单会话 UTF-8 文本不超过 64 KiB；工具会按句子和 UTF-8 安全边界自动分段，并把所有音频写入同一输出文件。意外出现的制表符、emoji、不可见字符、HTML/Markdown 控制符宜先清理。
 
 - MP3：`encoding="lame"`（默认）；PCM：`raw`。这是讯飞推荐的两种格式。接口还接受 `speex/opus/opus-wb/opus-swb/speex-wb`，但返回的是裸编码码流而非 Ogg 容器，不应声称 `.opus` 或 `.spx` 可由普通播放器直接播放；用户交付优先 MP3，后处理优先 PCM。
