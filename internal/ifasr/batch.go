@@ -39,6 +39,7 @@ type BatchResult struct {
 	TranscriptFormat    string              `json:"transcript_format,omitempty"`
 	Speakers            []SpeakerTranscript `json:"speakers,omitempty"`
 	Utterances          []Utterance         `json:"utterances,omitempty"`
+	Requests            []RequestTrace      `json:"requests,omitempty"`
 }
 
 type audioPart struct {
@@ -93,6 +94,7 @@ func (c *Client) TranscribeFile(ctx context.Context, inputPath string, opts Opti
 		batch.Parts = append(batch.Parts, BatchPart{
 			Index: index + 1, Size: part.size, DurationMS: part.durationMS, Result: result,
 		})
+		batch.Requests = append(batch.Requests, result.Requests...)
 		if opts.Progress != nil {
 			opts.Progress(index+1, workflowTotal, fmt.Sprintf("IFASR part %d of %d submitted", index+1, len(parts)))
 		}
@@ -116,7 +118,10 @@ func (c *Client) TranscribeFile(ctx context.Context, inputPath string, opts Opti
 		if err != nil {
 			return batch, fmt.Errorf("wait for IFASR part %d/%d: %w", index+1, len(batch.Parts), err)
 		}
+		queryRequests := result.Requests
+		result.Requests = append(batch.Parts[index].Result.Requests, queryRequests...)
 		batch.Parts[index].Result = result
+		batch.Requests = append(batch.Requests, queryRequests...)
 		if result.Transcript != "" {
 			transcripts = append(transcripts, result.Transcript)
 		}

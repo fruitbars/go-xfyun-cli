@@ -27,6 +27,8 @@ For local files, omit `track_mode` to enable automatic channel handling: mono om
 
 Use `wait=false` for one status check when host timeouts are short. Status `0` means created, `3` processing, `4` complete, and `-1` failed.
 
+Read `requests[]` when the user asks what was sent or when diagnosing an order. It records effective non-secret upload/query parameters, including automatic `trackMode` and per-part metadata. Authentication fields are excluded and URL query strings are redacted; use the top-level `order_id` and `signature_random` for follow-up queries.
+
 Hosts with an MCP progress token receive progress for part preparation, submission, and polling. Treat it as workflow-step progress rather than an audio-duration percentage. Without progress support, use `wait=false`, persist every order reference, and resume later instead of resubmitting.
 
 - Ordinary transcript: `result_type="transfer"`.

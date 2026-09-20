@@ -574,20 +574,22 @@ type IFASRSubmitInput struct {
 }
 
 type IFASRSubmitOutput struct {
-	OrderID          string            `json:"order_id,omitempty"`
-	SignatureRandom  string            `json:"signature_random,omitempty"`
-	TaskEstimateTime int64             `json:"task_estimate_time_ms,omitempty"`
-	Split            bool              `json:"split"`
-	Parts            []IFASRSubmitPart `json:"parts,omitempty"`
+	OrderID          string               `json:"order_id,omitempty"`
+	SignatureRandom  string               `json:"signature_random,omitempty"`
+	TaskEstimateTime int64                `json:"task_estimate_time_ms,omitempty"`
+	Split            bool                 `json:"split"`
+	Requests         []ifasr.RequestTrace `json:"requests,omitempty"`
+	Parts            []IFASRSubmitPart    `json:"parts,omitempty"`
 }
 
 type IFASRSubmitPart struct {
-	Index            int    `json:"index"`
-	OrderID          string `json:"order_id"`
-	SignatureRandom  string `json:"signature_random,omitempty"`
-	Size             int64  `json:"size_bytes"`
-	DurationMS       int64  `json:"duration_ms,omitempty"`
-	TaskEstimateTime int64  `json:"task_estimate_time_ms,omitempty"`
+	Index            int                  `json:"index"`
+	OrderID          string               `json:"order_id"`
+	SignatureRandom  string               `json:"signature_random,omitempty"`
+	Size             int64                `json:"size_bytes"`
+	DurationMS       int64                `json:"duration_ms,omitempty"`
+	TaskEstimateTime int64                `json:"task_estimate_time_ms,omitempty"`
+	Requests         []ifasr.RequestTrace `json:"requests,omitempty"`
 }
 
 func addIFASRSubmitTool(server *mcp.Server, service *Service) {
@@ -631,7 +633,7 @@ func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 			notifyProgress(ctx, req, 1, 1, "IFASR remote recording submitted")
 			return nil, IFASRSubmitOutput{
 				OrderID: result.OrderID, SignatureRandom: result.SignatureRand,
-				TaskEstimateTime: result.Response.Content.TaskEstimateTime,
+				TaskEstimateTime: result.Response.Content.TaskEstimateTime, Requests: result.Requests,
 			}, nil
 		}
 		batch, err := client.TranscribeFile(ctx, input.InputPath, opts)
@@ -643,13 +645,15 @@ func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 			output.Parts = append(output.Parts, IFASRSubmitPart{
 				Index: part.Index, OrderID: part.Result.OrderID, SignatureRandom: part.Result.SignatureRand,
 				Size: part.Size, DurationMS: part.DurationMS,
-				TaskEstimateTime: part.Result.Response.Content.TaskEstimateTime,
+				TaskEstimateTime: part.Result.Response.Content.TaskEstimateTime, Requests: part.Result.Requests,
 			})
+			output.Requests = append(output.Requests, part.Result.Requests...)
 		}
 		if len(output.Parts) == 1 {
 			output.OrderID = output.Parts[0].OrderID
 			output.SignatureRandom = output.Parts[0].SignatureRandom
 			output.TaskEstimateTime = output.Parts[0].TaskEstimateTime
+			output.Requests = output.Parts[0].Requests
 			output.Parts = nil
 		}
 		return nil, output, nil
@@ -690,6 +694,7 @@ type IFASRResultOutput struct {
 	OriginalDurationMS  int64                  `json:"original_duration_ms,omitempty"`
 	ExpireTime          int64                  `json:"expire_time,omitempty"`
 	TaskEstimateTime    int64                  `json:"task_estimate_time_ms,omitempty"`
+	Requests            []ifasr.RequestTrace   `json:"requests,omitempty"`
 	Split               bool                   `json:"split"`
 	Parts               []IFASRPartResult      `json:"parts,omitempty"`
 }
@@ -710,6 +715,7 @@ type IFASRPartResult struct {
 	OriginalDurationMS  int64                  `json:"original_duration_ms,omitempty"`
 	ExpireTime          int64                  `json:"expire_time,omitempty"`
 	TaskEstimateTime    int64                  `json:"task_estimate_time_ms,omitempty"`
+	Requests            []ifasr.RequestTrace   `json:"requests,omitempty"`
 }
 
 type IFASRUtteranceResult struct {
@@ -797,6 +803,7 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 			}
 			part.Index = index + 1
 			output.Parts = append(output.Parts, part)
+			output.Requests = append(output.Requests, part.Requests...)
 			output.Status = aggregateIFASRStatus(output.Status, part.Status)
 			if part.Transcript != "" {
 				transcripts = append(transcripts, part.Transcript)
@@ -828,6 +835,7 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 			output.Speakers = part.Speakers
 			output.RawResult, output.RawResponse = part.RawResult, part.RawResponse
 			output.ExpireTime, output.TaskEstimateTime = part.ExpireTime, part.TaskEstimateTime
+			output.Requests = part.Requests
 			output.FormattedTranscript = part.FormattedTranscript
 			output.Parts = nil
 		}
@@ -871,6 +879,7 @@ func queryIFASRPart(ctx context.Context, req *mcp.CallToolRequest, client *ifasr
 			return IFASRPartResult{}, err
 		}
 		result = ifasr.Result{OrderID: order.OrderID, SignatureRand: order.SignatureRandom, Status: response.Content.OrderInfo.Status, Response: response}
+		result.Requests = []ifasr.RequestTrace{ifasr.NewQueryRequestTrace(client.Variant, order.OrderID, input.ResultType)}
 		notifyProgress(ctx, req, float64(index+1), float64(total), fmt.Sprintf("IFASR part %d of %d checked", index+1, total))
 		if result.Status == 4 {
 			result.Transcript, result.OriginalTranscript, err = ifasr.ExtractTranscripts(response.Content.OrderResult)
@@ -895,6 +904,7 @@ func queryIFASRPart(ctx context.Context, req *mcp.CallToolRequest, client *ifasr
 		Speakers:   toMCPIFASRSpeakers(result.Speakers),
 		Language:   info.Language, OriginalDurationMS: info.OriginalDuration,
 		ExpireTime: info.ExpireTime, TaskEstimateTime: result.Response.Content.TaskEstimateTime,
+		Requests: result.Requests,
 	}
 	formatted, formatErr := ifasr.FormatTranscript(input.TranscriptFormat, part.Transcript, result.Utterances, result.Speakers)
 	if formatErr != nil {

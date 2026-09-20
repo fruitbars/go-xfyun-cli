@@ -126,7 +126,15 @@ type Result struct {
 	TranscriptFormat    string              `json:"transcript_format,omitempty"`
 	Speakers            []SpeakerTranscript `json:"speakers,omitempty"`
 	Utterances          []Utterance         `json:"utterances,omitempty"`
+	Requests            []RequestTrace      `json:"requests,omitempty"`
 	Response            Response            `json:"response"`
+}
+
+// RequestTrace exposes effective non-secret parameters for reproducibility.
+type RequestTrace struct {
+	Operation  string            `json:"operation"`
+	Variant    Variant           `json:"variant"`
+	Parameters map[string]string `json:"parameters"`
 }
 
 // SpeakerTranscript is the processed transcript grouped by the role ID in
@@ -197,11 +205,14 @@ func (c *Client) Transcribe(ctx context.Context, audio io.Reader, fileName strin
 	}
 	result.OrderID = uploadResponse.Content.OrderID
 	result.SignatureRand = randomValue
+	result.Requests = []RequestTrace{c.uploadRequestTrace(fileName, fileSize, randomValue, opts, "")}
 	result.Response = uploadResponse
 	if opts.NoWait {
 		return result, nil
 	}
-	return c.Wait(ctx, result.OrderID, randomValue, opts)
+	waited, err := c.Wait(ctx, result.OrderID, randomValue, opts)
+	waited.Requests = append(result.Requests, waited.Requests...)
+	return waited, err
 }
 
 // TranscribeURL submits an externally hosted recording. Unlike local files,
@@ -244,11 +255,62 @@ func (c *Client) TranscribeURL(ctx context.Context, audioURL, fileName string, f
 	}
 	result.OrderID = uploadResponse.Content.OrderID
 	result.SignatureRand = randomValue
+	result.Requests = []RequestTrace{c.uploadRequestTrace(fileName, fileSize, randomValue, opts, audioURL)}
 	result.Response = uploadResponse
 	if opts.NoWait {
 		return result, nil
 	}
-	return c.Wait(ctx, result.OrderID, randomValue, opts)
+	waited, err := c.Wait(ctx, result.OrderID, randomValue, opts)
+	waited.Requests = append(result.Requests, waited.Requests...)
+	return waited, err
+}
+
+func (c *Client) uploadRequestTrace(fileName string, fileSize int64, signatureRandom string, opts Options, audioURL string) RequestTrace {
+	params := c.uploadParams(fileName, fileSize, signatureRandom, opts)
+	if audioURL != "" {
+		params["audioMode"] = "urlLink"
+		params["audioUrl"] = audioURL
+	}
+	return RequestTrace{Operation: "upload", Variant: c.variant(opts), Parameters: sanitizeRequestParameters(params)}
+}
+
+func NewQueryRequestTrace(variant Variant, orderID, resultType string) RequestTrace {
+	if variant == "" {
+		variant = VariantLLM
+	}
+	if resultType == "" {
+		resultType = "transfer"
+	}
+	return RequestTrace{Operation: "query", Variant: variant, Parameters: map[string]string{
+		"orderId": orderID, "resultType": resultType,
+	}}
+}
+
+func sanitizeRequestParameters(params map[string]string) map[string]string {
+	sensitive := map[string]struct{}{
+		"appId": {}, "accessKeyId": {}, "dateTime": {}, "signatureRandom": {}, "ts": {}, "signa": {},
+	}
+	clean := make(map[string]string, len(params))
+	for key, value := range params {
+		if _, excluded := sensitive[key]; excluded {
+			continue
+		}
+		if key == "audioUrl" || key == "callbackUrl" {
+			value = redactURLQuery(value)
+		}
+		clean[key] = value
+	}
+	return clean
+}
+
+func redactURLQuery(value string) string {
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.RawQuery == "" {
+		return value
+	}
+	parsed.RawQuery = "redacted"
+	parsed.Fragment = ""
+	return parsed.String()
 }
 
 func (c *Client) Upload(ctx context.Context, audio io.Reader, fileName string, fileSize int64, signatureRandom string, opts Options) (Response, error) {
@@ -679,6 +741,7 @@ func (c *Client) Query(ctx context.Context, orderID, signatureRandom, resultType
 }
 
 func (c *Client) Wait(ctx context.Context, orderID, signatureRandom string, opts Options) (Result, error) {
+	variant := c.variant(opts)
 	result := Result{OrderID: orderID, SignatureRand: signatureRandom}
 	if opts.PollInterval <= 0 {
 		opts.PollInterval = 2 * time.Second
@@ -686,6 +749,10 @@ func (c *Client) Wait(ctx context.Context, orderID, signatureRandom string, opts
 	if opts.MaxWait <= 0 {
 		opts.MaxWait = 30 * time.Minute
 	}
+	if opts.ResultType == "" {
+		opts.ResultType = "transfer"
+	}
+	result.Requests = []RequestTrace{NewQueryRequestTrace(variant, orderID, opts.ResultType)}
 	waitCtx, cancel := context.WithTimeout(ctx, opts.MaxWait)
 	defer cancel()
 	for {

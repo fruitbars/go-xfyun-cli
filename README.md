@@ -23,7 +23,7 @@ npx -y @fruitbars/xfyun-ai-mcp@latest --version
 
 这条命令不会全局安装软件；`npx` 下载并缓存 npm 包，`--version` 只做启动验收。主 npm 包会自动选择 Windows、macOS、Linux 的 x64/arm64 原生包，不在运行时从 GitHub 下载二进制。
 
-下面的快速注册命令使用 `@latest`，适合希望自动获得新版本的个人用户。团队或生产环境可改为固定版本（当前为 `@0.6.1`），避免未经验证的自动升级。
+下面的快速注册命令使用 `@latest`，适合希望自动获得新版本的个人用户。团队或生产环境可改为固定版本（当前为 `@0.6.2`），避免未经验证的自动升级。
 
 用户不需要克隆仓库、安装 Go 或另行安装 FFmpeg。把 MCP 注册到 Agent 宿主后，只需配置同一个讯飞应用的 `APPID`、`APIKey`、`APISecret`，即可直接使用 OCR、TTS、RTASR 和 IFASR。
 
@@ -180,6 +180,8 @@ xfyun ifasr --input stereo.wav --role-type 1 --role-num 2 --speaker-output-dir .
 
 大模型版普通提交后必须同时保存 `order_id` 与 `signature_random`；标准版只需保存 `order_id`。自动切片时保存返回的 `parts` 数组，并原样传给结果查询的 `orders`。状态 `0` 为已创建、`3` 为处理中、`4` 为完成、`-1` 为失败。本地 `fileStream` 支持超限自动切片；外链 `urlLink` 需要同时提供 URL、文件名和字节数，且必须保持在单任务限制内。
 
+提交和查询结果的 `requests[]` 会带回实际生效的非敏感参数，便于把 `order_id`、自动推导的 `trackMode`、语言、角色和分片参数一起排查。鉴权字段不会进入快照，外链与回调 URL 的查询字符串会脱敏。
+
 两个接口的凭证字段映射、完整参数对照、MCP/CLI 流程、老 lfasr 兼容参数透传、批量续跑策略、结果字段和错误排查见 [IFASR 使用指南](docs/ifasr.md)。
 
 开启发音人分离时，`--speaker-output-dir` 会额外生成 `speakers.txt` 和每个发音人的独立文本；加上 `--speaker-timestamps` 后按服务返回的 `bg/ed` 输出 `[HH:MM:SS.mmm --> HH:MM:SS.mmm]` 时间戳。原始完整文本仍照常输出。MCP 结果中的 `speakers[].segments` 提供同样的起止毫秒。
@@ -221,7 +223,7 @@ IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先
     "xfyun-ai": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.6.1"]
+      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.6.2"]
     }
   }
 }

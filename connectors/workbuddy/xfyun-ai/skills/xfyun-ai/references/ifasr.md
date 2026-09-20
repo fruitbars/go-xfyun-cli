@@ -20,6 +20,8 @@
 
 结果状态：`0` 已创建、`3` 处理中、`4` 完成、`-1` 失败。普通转写用 `result_type="transfer"`；语种分析用 `analysis`；两者都要用 `transfer,analysis`。分析结果需同时设置 `include_raw=true`。
 
+提交和查询结果的 `requests[]` 记录实际生效的非敏感参数，包括自动 `trackMode` 与每个分片的文件参数；鉴权字段不会返回，URL 查询字符串会脱敏。排障时把 `requests` 与顶层 `order_id`、`signature_random` 一起使用。
+
 WorkBuddy 若提供 MCP progress token，会收到分片准备、提交和轮询状态通知；进度表示工作流步骤而非音频时长百分比。宿主超时较短或不支持通知时，使用 `wait=false`，保存全部订单标识后续跑，避免重复提交。
 
 `transcript` 是 `lattice` 的处理后文本；服务返回 `lattice2` 时，`original_transcript` 是原始文本。需要去除“嗯、啊、呃”和重复口癖时使用 `smooth=false, colloquial=true`。设置 `include_raw=true` 后，`raw_result` 返回 `orderResult`，`raw_response` 保留完整服务响应，用于角色编号、词级时间、双声道 `label.rl_track`、语种分析或其他未结构化字段。

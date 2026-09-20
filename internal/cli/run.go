@@ -469,6 +469,7 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 		var response ifasr.Response
 		response, err = client.Query(ctx, *orderID, *signatureRandom, *resultType)
 		result = ifasr.Result{OrderID: *orderID, SignatureRand: *signatureRandom, Status: response.Content.OrderInfo.Status, Response: response}
+		result.Requests = []ifasr.RequestTrace{ifasr.NewQueryRequestTrace(ifasr.Variant(*variant), *orderID, *resultType)}
 	} else {
 		result, err = client.Wait(ctx, *orderID, *signatureRandom, opts)
 	}

@@ -271,6 +271,33 @@ signa = Base64(HMAC-SHA1(MD5(appId + ts), XFYUN_API_SECRET))
 
 MCP 结构化结果还返回 `fail_type`、`language`、`original_duration_ms`、`expire_time`、`task_estimate_time_ms` 和 `speakers`。`speakers` 按 `st.rl` 聚合处理后文本，每项包含 `speaker`、`transcript`；双声道 `trackMode=2` 时还包含 `track`（`L` 或 `R`）。`transcript` 来自服务的 `lattice`，通常是顺滑或口语规整后的文本；服务返回 `lattice2` 时，`original_transcript` 保留原始识别文本。讯飞实际响应中的 `json_1best` 可能是 JSON 字符串，也可能直接是对象，客户端会自动兼容两种形式。
 
+### 请求参数快照
+
+每次 IFASR 提交和查询结果都包含 `requests[]`，用于把订单与实际生效参数放在一起排查。自动声道探测生成的 `trackMode=2`、默认语言、分片后的 `fileName/fileSize/duration`、角色参数和 `extra` 透传字段都会记录：
+
+```json
+{
+  "order_id": "...",
+  "signature_random": "...",
+  "requests": [
+    {
+      "operation": "upload",
+      "variant": "llm",
+      "parameters": {
+        "audioMode": "fileStream",
+        "fileName": "meeting.wav",
+        "fileSize": "123456",
+        "duration": "60000",
+        "language": "autodialect",
+        "trackMode": "2"
+      }
+    }
+  ]
+}
+```
+
+等待完成的同步调用会同时保留 `upload` 和 `query`；单独查询只返回本次 `query`。自动切片时顶层 `requests` 汇总全部分片，各 `parts[].requests` 保留对应分片的参数。`requests` 只记录业务参数，不包含 `appId`、`accessKeyId`、`dateTime`、`ts`、`signa`、签名请求头或 `signatureRandom`；续查必需的 `signature_random` 仍单独位于结果顶层。`audioUrl` 和 `callbackUrl` 的查询字符串会显示为 `?redacted`，防止临时访问令牌泄漏。
+
 服务响应字段完整对照：
 
 | 层级 | 字段 | 说明 |
@@ -320,6 +347,8 @@ MCP 结构化结果还返回 `fail_type`、`language`、`original_duration_ms`�
 ```bash
 xfyun ifasr --input meeting.wav
 ```
+
+CLI 使用 `--raw` 时会把 `requests[]` 和订单标识一起输出；默认纯文本模式仍只输出转写内容，进度和错误写入 stderr。
 
 异步提交并保存标识：
 

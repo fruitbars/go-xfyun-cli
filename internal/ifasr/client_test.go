@@ -200,6 +200,17 @@ func TestTranscribeURLSendsDocumentedURLParameters(t *testing.T) {
 	if result.OrderID != "url-order" || len(result.SignatureRand) != 16 {
 		t.Fatalf("result = %+v", result)
 	}
+	if len(result.Requests) != 1 || result.Requests[0].Operation != "upload" || result.Requests[0].Parameters["trackMode"] != "2" {
+		t.Fatalf("request trace = %+v", result.Requests)
+	}
+	if got := result.Requests[0].Parameters["audioUrl"]; got != "https://media.example/meeting.wav?redacted" {
+		t.Fatalf("redacted audioUrl = %q", got)
+	}
+	for _, sensitive := range []string{"appId", "accessKeyId", "dateTime", "signatureRandom", "ts", "signa"} {
+		if _, exists := result.Requests[0].Parameters[sensitive]; exists {
+			t.Fatalf("request trace contains sensitive parameter %s", sensitive)
+		}
+	}
 }
 
 func TestStandardIFASRUsesLegacyUploadAndGetResultProtocol(t *testing.T) {
@@ -251,6 +262,9 @@ func TestStandardIFASRUsesLegacyUploadAndGetResultProtocol(t *testing.T) {
 	}
 	if result.Status != 4 || result.Transcript != "标准版" {
 		t.Fatalf("standard result = %+v", result)
+	}
+	if len(result.Requests) != 1 || result.Requests[0].Parameters["orderId"] != "standard-order" {
+		t.Fatalf("standard query trace = %+v", result.Requests)
 	}
 }
 

@@ -36,6 +36,8 @@ For local audio, omitted `track_mode` is detected automatically: mono inputs omi
 
 Status `0` means created, `3` processing, `4` complete, and `-1` failed. Use `wait=false` for one status check when the MCP host has a short timeout. For batches, save each order reference immediately after submission so an interrupted run can resume without a duplicate upload.
 
+Every IFASR submit/query result includes `requests`, pairing the order with effective non-secret provider parameters such as language, role, detected `trackMode`, and per-part file metadata. Authentication fields are excluded; URL query strings are redacted. Split results aggregate the traces and retain them on each part.
+
 Hosts that provide an MCP progress token receive progress notifications for TTS segments and IFASR part submission/polling. Hosts without progress support should use the returned output paths, `wait=false`, and saved order references to resume long work safely.
 
 Set `include_raw=true` when speaker IDs, word timing, stereo `label.rl_track`, or other detailed fields are needed. `raw_result` contains `orderResult`; `raw_response` preserves the complete service response, including reserved future result fields.
