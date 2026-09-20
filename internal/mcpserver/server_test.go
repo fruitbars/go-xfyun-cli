@@ -54,7 +54,7 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 			t.Fatalf("IFASR result schema does not expose split orders: %s", schema)
 		}
 		if tool.Name == "xfyun_ifasr_submit" {
-			for _, field := range []string{`"audio_url"`, `"file_name"`, `"file_size_bytes"`, `"track_mode"`} {
+			for _, field := range []string{`"variant"`, `"audio_url"`, `"file_name"`, `"file_size_bytes"`, `"track_mode"`, `"hot_word"`, `"language_type"`} {
 				if !strings.Contains(string(schema), field) {
 					t.Fatalf("IFASR submit schema does not expose %s: %s", field, schema)
 				}

@@ -45,3 +45,10 @@ func TestHMACSHA1IsStableAndIgnoresEmptyValues(t *testing.T) {
 		t.Fatal("signature is empty")
 	}
 }
+
+func TestStandardIFASRSignaMatchesOfficialExample(t *testing.T) {
+	got := StandardIFASRSigna("595f23df", "1512041814", "d9f4aa7ea6d94faca62cd88a28fd5234")
+	if want := "IrrzsJeOFk1NGfJHW6SkHUoN9CU="; got != want {
+		t.Fatalf("signa = %q, want %q", got, want)
+	}
+}

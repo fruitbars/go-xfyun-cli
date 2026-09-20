@@ -30,6 +30,16 @@ func (c Credentials) ValidateSigned() error {
 	return nil
 }
 
+// ValidateStandardIFASR checks the credentials required by the standard
+// recording transcription API. That API uses AppID and the service secret;
+// APIKey is not part of its signa calculation.
+func (c Credentials) ValidateStandardIFASR() error {
+	if c.AppID == "" || c.APISecret == "" {
+		return fmt.Errorf("missing credentials: set XFYUN_APP_ID and XFYUN_API_SECRET")
+	}
+	return nil
+}
+
 func (c Credentials) ValidateTTS() error {
 	return c.ValidateSigned()
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -188,6 +189,58 @@ func TestTranscribeURLSendsDocumentedURLParameters(t *testing.T) {
 	}
 	if result.OrderID != "url-order" || len(result.SignatureRand) != 16 {
 		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestStandardIFASRUsesLegacyUploadAndGetResultProtocol(t *testing.T) {
+	orderResult := `{"lattice":[{"json_1best":"{\"st\":{\"rt\":[{\"ws\":[{\"cw\":[{\"w\":\"标准版\"}]}]}]}}"}]}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		if r.URL.Path == "/upload" {
+			if r.Method != http.MethodPost || query.Get("appId") != "app" || query.Get("fileName") != "meeting.wav" || query.Get("fileSize") != "4" || query.Get("duration") != "1234" || query.Get("audioMode") != "fileStream" {
+				t.Fatalf("unexpected standard upload: %s %s", r.Method, r.URL.String())
+			}
+			if query.Get("signa") == "" || query.Get("ts") == "" {
+				t.Fatal("standard upload signature parameters are missing")
+			}
+			body, err := io.ReadAll(r.Body)
+			if err != nil || string(body) != "test" {
+				t.Fatalf("upload body = %q, error = %v", body, err)
+			}
+			_, _ = w.Write([]byte(`{"code":"000000","descInfo":"success","content":{"orderId":"standard-order"}}`))
+			return
+		}
+		if r.URL.Path != "/getResult" || r.Method != http.MethodPost {
+			t.Fatalf("unexpected standard result request: %s %s", r.Method, r.URL.String())
+		}
+		if query.Get("orderId") != "standard-order" || query.Get("appId") != "app" || query.Get("signa") == "" {
+			t.Fatalf("standard result query = %s", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"code":"000000","descInfo":"success","content":{"orderInfo":{"orderId":"standard-order","status":4},"orderResult":` + strconv.Quote(orderResult) + `}}`))
+	}))
+	defer server.Close()
+
+	client := Client{
+		Credentials: config.Credentials{AppID: "app", APISecret: "secret"},
+		Endpoint:    server.URL,
+		Variant:     VariantStandard,
+	}
+	result, err := client.Transcribe(context.Background(), strings.NewReader("test"), "meeting.wav", 4, Options{
+		Variant: VariantStandard, Language: "cn", DurationMS: 1234, RoleType: 1, RoleNum: 2,
+		TrackMode: 1, HotWord: "讯飞|转写", SysDicts: "medical", NoWait: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OrderID != "standard-order" || result.SignatureRand != "" {
+		t.Fatalf("standard upload result = %+v", result)
+	}
+	result, err = client.Wait(context.Background(), result.OrderID, "", Options{Variant: VariantStandard, ResultType: "transfer", MaxWait: time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status != 4 || result.Transcript != "标准版" {
+		t.Fatalf("standard result = %+v", result)
 	}
 }
 

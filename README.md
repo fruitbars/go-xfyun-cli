@@ -5,7 +5,7 @@
 - `ocr`：通用文档识别（OCR 大模型）
 - `tts`：超拟人语音合成
 - `rtasr`：实时语音转写大模型
-- `ifasr`：录音文件转写大模型
+- `ifasr`：录音文件转写（大模型版与标准版）
 - `media`：本地音频探测与格式转换
 - `xfyun-ai-mcp`：以上能力的 stdio MCP Server（6 个工具）
 
@@ -153,6 +153,7 @@ xfyun rtasr --input speech.pcm --punctuation=false
 
 ```bash
 xfyun ifasr --input meeting.mp3
+xfyun ifasr --variant standard --input meeting.mp3 --language cn
 xfyun ifasr --input meeting.mp3 --no-wait > order.json
 xfyun ifasr --input stereo.wav --track-mode 2 --raw
 xfyun ifasr --audio-url 'https://media.example/meeting.wav' --file-name meeting.wav --file-size-bytes 12345678
@@ -160,7 +161,9 @@ xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd...' --no-wait
 xfyun ifasr --input stereo.wav --role-type 1 --role-num 2 --speaker-output-dir ./speakers --speaker-timestamps
 ```
 
-支持 `mp3/wav/pcm/opus/flac/ogg/speex`。单个讯飞任务最长 5 小时、最大 500 MiB；超过任一限制时，工具自动探测媒体、无损切片并提交多个任务，完成后按原顺序合并文本。npm 启动器会提供切片引擎，无需用户另行预处理。高级参数包括：
+默认使用录音文件转写大模型；设置 `--variant standard` 或 MCP 的 `variant: "standard"` 可切换到标准版。大模型版提交后需要保存 `order_id + signature_random`，标准版只需要保存 `order_id`；两种凭证不能混用。标准版使用 `raasr.xfyun.cn/v2/api` 的 `appId + ts + signa` 鉴权，`XFYUN_API_SECRET` 对应官网所称 `secretkey`。
+
+大模型版支持 `mp3/wav/pcm/opus/flac/ogg/speex`；标准版还支持官网列出的 `aac/m4a/amr/ac3/ape/m4r/mp4/acc/wma`。单个讯飞任务最长 5 小时、最大 500 MiB；超过任一限制时，工具自动探测媒体、无损切片并提交多个任务，完成后按原顺序合并文本。npm 启动器会提供切片引擎，无需用户另行预处理。高级参数包括：
 
 - `--role-type 1` 通用角色分离；`--role-type 3 --feature-ids ...` 声纹分离
 - `--role-num 0..10`
@@ -171,9 +174,11 @@ xfyun ifasr --input stereo.wav --role-type 1 --role-num 2 --speaker-output-dir .
 - `--callback-url https://...`
 - `--language-analysis --result-type transfer,analysis --raw`
 
-普通提交后必须同时保存 `order_id` 与 `signature_random`；自动切片时保存返回的 `parts` 数组，并原样传给结果查询的 `orders`。状态 `0` 为已创建、`3` 为处理中、`4` 为完成、`-1` 为失败。本地 `fileStream` 支持超限自动切片；外链 `urlLink` 需要同时提供 URL、文件名和字节数，且必须保持在单任务限制内。
+标准版额外参数包括 `--hot-word`、`--sys-dicts`、`--candidate`、`--standard-wav`、`--language-type`、`--translation-language`、`--translation-mode`、`--segment-max`、`--segment-min`、`--segment-weight` 和 `--vad-margin`。标准版结果类型使用 `transfer`、`translate` 或 `predict`，其中翻译/质检需账号权限。
 
-凭证字段映射、MCP/CLI 完整流程、全部 Ifasr_llm 参数、老 lfasr 兼容参数透传、批量续跑策略、结果字段和 `000002`/`100020` 等错误排查见 [IFASR 使用指南](docs/ifasr.md)。
+大模型版普通提交后必须同时保存 `order_id` 与 `signature_random`；标准版只需保存 `order_id`。自动切片时保存返回的 `parts` 数组，并原样传给结果查询的 `orders`。状态 `0` 为已创建、`3` 为处理中、`4` 为完成、`-1` 为失败。本地 `fileStream` 支持超限自动切片；外链 `urlLink` 需要同时提供 URL、文件名和字节数，且必须保持在单任务限制内。
+
+两个接口的凭证字段映射、完整参数对照、MCP/CLI 流程、老 lfasr 兼容参数透传、批量续跑策略、结果字段和错误排查见 [IFASR 使用指南](docs/ifasr.md)。
 
 开启发音人分离时，`--speaker-output-dir` 会额外生成 `speakers.txt` 和每个发音人的独立文本；加上 `--speaker-timestamps` 后按服务返回的 `bg/ed` 输出 `[HH:MM:SS.mmm --> HH:MM:SS.mmm]` 时间戳。原始完整文本仍照常输出。MCP 结果中的 `speakers[].segments` 提供同样的起止毫秒。
 
@@ -223,7 +228,7 @@ Codex、Claude Code、WorkBuddy 及其他宿主的安装方法见 [Agent 产品�
 ## 发布
 
 - `.github/workflows/release.yml`：在 `CGO_ENABLED=0` 下为六个平台构建 CLI/MCP 二进制并生成 SHA-256。
-- `.github/workflows/npm-publish.yml`：先发布六个原生 npm 包，再发布 `@fruitbars/xfyun-ai-mcp` 启动器。
+- `.github/workflows/npm-publish.yml`：版本标签推送后先发布六个原生 npm 包，再发布 `@fruitbars/xfyun-ai-mcp` 启动器；也可从 Actions 手动补发。
 
 正式发布前需要确认 npm scope `@fruitbars` 的所有权、设置 `NPM_TOKEN`，并决定仓库许可证。macOS 正式分发还建议签名/公证，Windows 建议代码签名。
 
@@ -243,4 +248,5 @@ node scripts/test-package.mjs
 - [实时语音转写大模型](https://www.xfyun.cn/doc/spark/asr_llm/rtasr_llm.html)
 - [通用文档识别 OCR 大模型](https://www.xfyun.cn/doc/words/OCRforLLM/API.html)
 - [超拟人语音合成](https://www.xfyun.cn/doc/spark/super%20smart-tts.html)
+- [录音文件转写标准版](https://www.xfyun.cn/doc/asr/ifasr_new/API.html)
 - [录音文件转写大模型](https://www.xfyun.cn/doc/spark/asr_llm/Ifasr_llm.html)

@@ -2,15 +2,27 @@ package auth
 
 import (
 	"crypto/hmac"
+	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"sort"
 	"strings"
 	"time"
 )
+
+// StandardIFASRSigna creates the signa used by the legacy recording
+// transcription API: HMAC-SHA1(MD5(appID + timestamp), secretKey).
+func StandardIFASRSigna(appID, timestamp, secretKey string) string {
+	digest := md5.Sum([]byte(appID + timestamp))
+	baseString := hex.EncodeToString(digest[:])
+	mac := hmac.New(sha1.New, []byte(secretKey))
+	_, _ = mac.Write([]byte(baseString))
+	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
+}
 
 // SignedURL creates the HMAC-SHA256 URL used by XFYun WebAPI endpoints.
 func SignedURL(rawURL, method, apiKey, apiSecret string, now time.Time) (string, error) {

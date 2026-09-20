@@ -349,12 +349,13 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	var creds config.Credentials
 	credentialFlags(fs, &creds)
 	inputPath := fs.String("input", "", "audio file path (upload mode)")
+	variant := fs.String("variant", "llm", "recording transcription variant: llm or standard")
 	audioURL := fs.String("audio-url", "", "absolute HTTP(S) audio URL (urlLink upload mode)")
 	fileName := fs.String("file-name", "", "remote audio filename with extension (required with --audio-url)")
 	fileSizeBytes := fs.Int64("file-size-bytes", 0, "remote audio byte size (required with --audio-url)")
 	orderID := fs.String("order-id", "", "existing order ID (query mode)")
 	signatureRandom := fs.String("signature-random", "", "signature random returned during upload (query mode)")
-	language := fs.String("language", "autodialect", "autodialect or autominor")
+	language := fs.String("language", "", "LLM: autodialect or autominor; standard: cn, en, ja, ... (default depends on variant)")
 	durationMS := fs.Int64("duration-ms", 0, "known audio duration in milliseconds; zero auto-detects")
 	domain := fs.String("domain", "", "domain optimization, such as finance or medical")
 	trackMode := fs.Int("track-mode", 0, "channel mode: 0 service default, 1 mixed, 2 stereo tracks")
@@ -367,7 +368,18 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	ifasrVADMode := fs.Int("vad-mode", 0, "VAD field mode: 0 default, 1 far field, 2 near field")
 	cantoneseScript := fs.Int("cantonese-script", -1, "Cantonese script: -1 default, 0 simplified, 1 traditional")
 	analysis := fs.Bool("language-analysis", false, "enable spoken-language analysis (multilingual entitlement required)")
-	resultType := fs.String("result-type", "transfer", "transfer, analysis, or comma-separated combination")
+	hotWord := fs.String("hot-word", "", "standard only: pipe-separated hot words")
+	sysDicts := fs.String("sys-dicts", "", "standard only: system dictionary names")
+	candidate := fs.Int("candidate", 0, "standard only: multi-candidate output, 0 off or 1 on")
+	standardWav := fs.Int("standard-wav", 0, "standard only: input is standard 16k/16bit/mono WAV, 0 or 1")
+	languageType := fs.Int("language-type", 0, "standard only: language mode 1 automatic, 2 Chinese, 4 pure Chinese")
+	transLanguage := fs.String("translation-language", "", "standard only: target translation language")
+	transMode := fs.Int("translation-mode", 0, "standard only: translation mode 1 VAD, 2 paragraph, 3 full text")
+	engSegMax := fs.Int("segment-max", 0, "standard only: maximum segment characters, 0-500")
+	engSegMin := fs.Int("segment-min", 0, "standard only: minimum segment characters, 0-50")
+	engSegWeight := fs.Float64("segment-weight", 0, "standard only: segment character weight, 0-0.05")
+	vadMargin := fs.Int("vad-margin", 0, "standard only: include leading/trailing silence, 0 or 1")
+	resultType := fs.String("result-type", "transfer", "LLM: transfer/analysis/transfer,analysis; standard: transfer/translate/predict")
 	pollInterval := fs.Duration("poll-interval", 2*time.Second, "result polling interval")
 	maxWait := fs.Duration("max-wait", 30*time.Minute, "maximum wait for a completed order")
 	noWait := fs.Bool("no-wait", false, "upload or query once and print machine-readable state")
@@ -378,14 +390,20 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	var extra keyValueFlags
 	fs.Var(&extra, "param", "extra upload query parameter key=value (repeatable)")
 	fs.Usage = func() {
-		fmt.Fprintln(stderr, "Usage: xfyun ifasr --input AUDIO [options]\n   or: xfyun ifasr --audio-url URL --file-name NAME --file-size-bytes N [options]\n   or: xfyun ifasr --order-id ID --signature-random RANDOM [options]")
+		fmt.Fprintln(stderr, "Usage: xfyun ifasr --input AUDIO [options]\n   or: xfyun ifasr --audio-url URL --file-name NAME --file-size-bytes N [options]\n   or: xfyun ifasr --variant standard --order-id ID [options]\n   or: xfyun ifasr --order-id ID --signature-random RANDOM [options]")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if *variant != string(ifasr.VariantLLM) && *variant != string(ifasr.VariantStandard) {
+		return fmt.Errorf("--variant must be llm or standard")
+	}
 	if *analysis && *resultType == "transfer" {
 		*resultType = "transfer,analysis"
+	}
+	if *variant == string(ifasr.VariantStandard) && *analysis {
+		return fmt.Errorf("--language-analysis is only available for the large-model IFASR variant")
 	}
 	modeCount := 0
 	for _, configured := range []bool{*inputPath != "", *audioURL != "", *orderID != ""} {
@@ -396,26 +414,37 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	if modeCount != 1 {
 		return fmt.Errorf("provide exactly one of --input, --audio-url, or --order-id")
 	}
-	if *orderID != "" && *signatureRandom == "" {
+	if *orderID != "" && *variant == "llm" && *signatureRandom == "" {
 		return fmt.Errorf("--signature-random is required with --order-id")
+	}
+	if *variant == string(ifasr.VariantStandard) && *signatureRandom != "" {
+		return fmt.Errorf("--variant standard does not use --signature-random")
 	}
 	if *audioURL != "" && (*fileName == "" || *fileSizeBytes <= 0) {
 		return fmt.Errorf("--file-name and positive --file-size-bytes are required with --audio-url")
 	}
 	creds.FromEnv()
-	if err := creds.ValidateSigned(); err != nil {
+	if *variant == string(ifasr.VariantStandard) {
+		if err := creds.ValidateStandardIFASR(); err != nil {
+			return err
+		}
+	} else if err := creds.ValidateSigned(); err != nil {
 		return err
 	}
-	client := ifasr.Client{Credentials: creds}
+	client := ifasr.Client{Credentials: creds, Variant: ifasr.Variant(*variant)}
 	var cantoneseScriptOption *int
 	if *cantoneseScript >= 0 {
 		cantoneseScriptOption = cantoneseScript
 	}
 	opts := ifasr.Options{
+		Variant:  ifasr.Variant(*variant),
 		Language: *language, DurationMS: *durationMS, Domain: *domain, TrackMode: *trackMode,
 		CallbackURL: *callbackURL, RoleType: *roleType, RoleNum: *roleNum, FeatureIDs: *featureIDs,
 		Smooth: smooth, Colloquial: colloquial, VADMode: *ifasrVADMode,
 		CantoneseScript: cantoneseScriptOption, Analysis: *analysis,
+		HotWord: *hotWord, SysDicts: *sysDicts, Candidate: *candidate, StandardWav: *standardWav,
+		LanguageType: *languageType, TransLanguage: *transLanguage, TransMode: *transMode,
+		EngSegMax: *engSegMax, EngSegMin: *engSegMin, EngSegWeight: *engSegWeight, VADMargin: *vadMargin,
 		ResultType: *resultType, PollInterval: *pollInterval, MaxWait: *maxWait,
 		Extra: extra, NoWait: *noWait, SignatureRand: *signatureRandom,
 	}

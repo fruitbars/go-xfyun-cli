@@ -36,7 +36,7 @@ npm publish ./npm/xfyun-ai-mcp --access public
 
 npm 版本不能重复发布。部分成功时，先用 `npm view <包名>@0.5.0` 核实已发布的包，只继续尚未发布的包；不要直接重新运行完整发布流程。若发布内容错误，需要提升所有相关版本后重新发布。
 
-也可以上传仓库和 `v0.5.0` tag 后使用 GitHub Actions：设置 `NPM_TOKEN` secret，按需配置 `npm` environment 的审批，再手动运行 `Publish npm`，使用 `v0.5.0` tag 作为 ref，例如 `gh workflow run npm-publish.yml --ref v0.5.0`。工作流先在 Windows、macOS、Linux runner 上测试并验证各自当前架构的安装包，全部通过后再构建六个平台并依次发布原生包和启动器。`Build Release` 可通过 tag 或手动触发，不是 npm 发布的前置依赖。
+推送 `v0.5.0` 这类 `v*` tag 后，`Build Release` 和 `Publish npm` 都会自动触发；`Publish npm` 仍保留手动入口用于补发。设置 `NPM_TOKEN` secret，按需配置 `npm` environment 的审批。工作流先在 Windows、macOS、Linux runner 上测试并验证各自当前架构的安装包，全部通过后再构建六个平台并依次发布原生包和启动器。`Build Release` 不是 npm 发布的前置依赖。
 
 ## npm 安装验收
 
@@ -46,7 +46,7 @@ npm 版本不能重复发布。部分成功时，先用 `npm view <包名>@0.5.0
 npx -y @fruitbars/xfyun-ai-mcp@0.5.0 --version
 ```
 
-然后在 MCP 宿主中确认六个工具可发现。配置讯飞凭证后，用小文件分别验收 OCR、TTS、RTASR 和 IFASR，并用本地音频验收 `xfyun_media`；普通 IFASR 保存 `order_id` 与 `signature_random`，自动切片时保存全部 `parts`。这些真实接口调用可能收费，应手动执行。
+然后在 MCP 宿主中确认六个工具可发现。配置讯飞凭证后，用小文件分别验收 OCR、TTS、RTASR 和 IFASR，并用本地音频验收 `xfyun_media`；大模型版 IFASR 保存 `order_id` 与 `signature_random`，标准版只保存 `order_id`，自动切片时保存全部 `parts`。这些真实接口调用可能收费，应手动执行。
 
 ## 再提交 WorkBuddy
 

@@ -18,7 +18,7 @@ XFYUN_API_KEY
 XFYUN_API_SECRET
 ```
 
-不要把真实值写入 Skill、`mcp.json`、提示词或仓库。该讯飞应用必须分别开通所调用的 OCR、TTS、RTASR、IFASR 权限、发音人或多语种套餐。
+不要把真实值写入 Skill、`mcp.json`、提示词或仓库。该讯飞应用必须分别开通所调用的 OCR、超拟人 TTS、RTASR、录音文件转写标准版或大模型版权限、发音人或多语种套餐。标准版使用 `appId + ts + signa`，`XFYUN_API_KEY` 不是其签名必需项。
 
 连接成功后应出现六个工具：`xfyun_ocr`、`xfyun_tts`、`xfyun_rtasr`、`xfyun_ifasr_submit`、`xfyun_ifasr_result`、`xfyun_media`。本地文件路径必须对运行 WorkBuddy 与 MCP Server 的同一台机器可见；`xfyun_media` 可查询或转换本地音频的声道、采样率和码率。
 

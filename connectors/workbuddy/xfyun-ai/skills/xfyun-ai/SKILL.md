@@ -16,9 +16,9 @@ author: fruitbars
 ## 选择工具
 
 - 文档图片或 PDF 使用 `xfyun_ocr`；不支持的位图格式自动转换，PDF 的渲染、压缩、OCR、结果写出和释放都按页流式执行。多页结果位于返回的 NDJSON `output_path`，不要一次性读入全部内容。
-- 文字转语音使用 `xfyun_tts`。必须指定输出路径；仅当用户明确同意覆盖该文件时设置 `force=true`。
+- 文字转语音使用 `xfyun_tts`（讯飞超拟人大模型合成）。必须指定输出路径；仅当用户明确同意覆盖该文件时设置 `force=true`。
 - PCM、Opus 或 Speex 实时风格音频使用 `xfyun_rtasr`。
-- 已录制的普通或长音频使用 `xfyun_ifasr_submit`。普通响应保存 `order_id` 和 `signature_random`；`split=true` 时保存 `parts` 中的全部任务引用，并作为 `orders` 交给 `xfyun_ifasr_result` 查询和合并。
+- 已录制的普通或长音频使用 `xfyun_ifasr_submit`。默认使用录音文件转写大模型；需要标准版时传 `variant="standard"`。大模型响应保存 `order_id` 和 `signature_random`，标准版只保存 `order_id`；`split=true` 时保存 `parts` 中的全部任务引用，并作为 `orders` 交给 `xfyun_ifasr_result` 查询和合并。
 - 本地音频采样率、声道或码率查询/转换使用 `xfyun_media`；`operation=info` 只读探测，`operation=convert` 支持单声道/双声道、采样率和码率转换。
 
 仅按当前能力读取对应参数参考：

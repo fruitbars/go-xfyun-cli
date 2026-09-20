@@ -44,7 +44,7 @@ For language codes and advanced recognition controls read [rtasr.md](rtasr.md).
 
 ### `xfyun_ifasr_submit`
 
-Required: `input_path`. Supports `mp3`, `wav`, `pcm`, `opus`, `flac`, `ogg`, and `speex`. Audio over 5 hours or 500 MiB is automatically probed and losslessly split into multiple service orders. A zero `duration_ms` lets the tool probe duration when its bundled media helper is available.
+Required: `input_path`. Defaults to the Spark large-model recording transcription; set `variant="standard"` for the standard recording transcription API. LLM supports `mp3`, `wav`, `pcm`, `opus`, `flac`, `ogg`, and `speex`; standard also accepts the official `aac`, `m4a`, `amr`, `ac3`, `ape`, `m4r`, `mp4`, `acc`, and `wma` formats. Audio over 5 hours or 500 MiB is automatically probed and losslessly split into multiple service orders. A zero `duration_ms` lets the tool probe duration when its bundled media helper is available.
 
 For ordinary input, persist both returned fields:
 
@@ -56,6 +56,8 @@ For ordinary input, persist both returned fields:
 ```
 
 For automatically split input, preserve every `order_id` and `signature_random` in the returned `parts` array. Pass those references to `xfyun_ifasr_result` as `orders`; it merges completed transcripts in source order.
+
+For `variant="standard"`, persist only `order_id`; the standard API signs each upload/query with `appId + ts + signa` and does not return or require `signature_random`. Its default language is `cn` and it supports standard-only fields such as `hot_word`, `sys_dicts`, `candidate`, `language_type`, translation, and segment controls.
 
 For submission, post-processing, speaker, and analysis options read [ifasr.md](ifasr.md).
 

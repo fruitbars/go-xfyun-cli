@@ -1,10 +1,19 @@
 # IFASR 录音文件转写指南
 
-IFASR 适合已经录制完成的会议、访谈、客服录音和长音频文件。它采用“提交任务—异步查询结果”的流程。需要边录边出字时使用 RTASR；已有 `mp3/wav/flac/ogg` 等文件时优先使用 IFASR。
+IFASR 适合已经录制完成的会议、访谈、客服录音和长音频文件。它采用“提交任务—异步查询结果”的流程。需要边录边出字时使用 RTASR；已有录音文件时使用 IFASR。
+
+本工具同时接入两个独立的录音文件转写接口：
+
+| 变体 | `variant` | 服务 | 默认语言 | 订单凭证 |
+| --- | --- | --- | --- | --- |
+| 大模型版 | `llm`（默认） | Spark 录音文件转写大模型 `/v2/upload` | `autodialect` | `order_id + signature_random` |
+| 标准版 | `standard` | 录音文件转写标准版 `/v2/api/upload` | `cn` | 只有 `order_id` |
+
+两者都支持本地文件自动切片、异步轮询、角色文本、时间戳和双声道结果；上传参数、签名、查询方法和可用语种不能混用。
 
 ## 凭证与服务
 
-录音文件转写大模型与项目中的其他讯飞能力共用三项环境变量：
+两个 IFASR 变体与项目中的其他讯飞能力共用三项环境变量：
 
 ```text
 XFYUN_APP_ID
@@ -17,14 +26,14 @@ XFYUN_API_SECRET
 | 本项目 | 讯飞上传接口 |
 | --- | --- |
 | `XFYUN_APP_ID` | `appId` |
-| `XFYUN_API_KEY` | `accessKeyId` |
-| `XFYUN_API_SECRET` | HMAC-SHA1 签名密钥 |
+| `XFYUN_API_KEY` | 大模型版 `accessKeyId` |
+| `XFYUN_API_SECRET` | 大模型版 HMAC-SHA1 密钥；标准版 `secretkey` |
 
-不需要第四项 IFASR 专用凭证。三项值必须属于同一个讯飞应用，并在该应用下开通“录音文件转写大模型”。MCP 只继承宿主启动时的环境变量；修改变量后需要完全重启 Codex、Claude Code 或其他宿主。
+不需要第四项 IFASR 专用凭证。大模型版需要三项值；标准版签名本身只使用 `XFYUN_APP_ID` 和 `XFYUN_API_SECRET`，`XFYUN_API_KEY` 可以不填。三项值必须属于同一个讯飞应用，并在该应用下开通所选的录音转写服务。标准版文档把 `secretkey` 称为服务接口密钥；本项目使用 `XFYUN_API_SECRET` 承载它。MCP 只继承宿主启动时的环境变量；修改变量后需要完全重启 Codex、Claude Code 或其他宿主。
 
 ## 输入要求
 
-- 格式：`mp3`、`wav`、`pcm`、`opus`、`flac`、`ogg`、`speex`
+- 格式：大模型版常用 `mp3`、`wav`、`pcm`、`opus`、`flac`、`ogg`、`speex`；标准版还接受 `aac`、`m4a`、`amr`、`ac3`、`ape`、`m4r`、`mp4`、`acc`、`wma` 等官网列出的格式
 - 官方基础音频属性：8 kHz 或 16 kHz、16 bit、单声道；使用 `trackMode=2` 时输入为双声道
 - 单个讯飞任务：最长 5 小时且最大 500 MiB
 - 上传方式：本地 `fileStream` 或 HTTP(S) 外链 `urlLink`
@@ -98,6 +107,39 @@ XFYUN_API_SECRET
 
 `roleNum=0` 表示自动盲分，`1..10` 表示指定人数。`trackMode=2` 时按左右声道分轨，角色分离参数失效；客户端选择直接报互斥错误，避免参数被静默忽略。
 
+## 标准版参数与协议
+
+标准版使用 `https://raasr.xfyun.cn/v2/api/upload` 上传和 `https://raasr.xfyun.cn/v2/api/getResult` 查询。官方页面顶部曾把查询标为 GET，但官方 Python SDK 和可执行接口协议使用 POST；本工具采用 POST。上传是 POST 二进制流，查询是 POST 空请求体；每次请求的 `ts` 为 Unix 秒级时间戳，签名为：
+
+```text
+signa = Base64(HMAC-SHA1(MD5(appId + ts), XFYUN_API_SECRET))
+```
+
+标准版不使用大模型版的 `accessKeyId`、`dateTime` 或 `signatureRandom`。提交成功只需保存 `order_id`，查询时重新生成 `ts/signa`。
+
+| 讯飞参数 | MCP / CLI | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `appId` / `signa` / `ts` | 自动生成 | 无 | 标准版鉴权参数 |
+| `fileName` / `fileSize` | 路径或外链元数据 | 无 | 文件名应保留真实扩展名；大小为字节 |
+| `duration` | `duration_ms` / `--duration-ms` | `0` | 毫秒；本地输入可由媒体工具探测 |
+| `language` | `language` / `--language` | `cn` | `cn`、`en`、`ja`、`ko`、`ru`、`fr`、`es`、`vi`、`ar`、`de`、`it` 等已开通语种 |
+| `sysDicts` | `sys_dicts` / `--sys-dicts` | 无 | 系统词典；具体词典以控制台权限为准 |
+| `hotWord` | `hot_word` / `--hot-word` | 无 | `热词1|热词2`，最多 200 个，单词长度 2-16 |
+| `candidate` | `candidate` / `--candidate` | `0` | 多候选开关，`0` 关闭、`1` 开启 |
+| `roleType` / `roleNum` | `role_type` / `role_num` | `0` / `0` | 标准版角色分离仅支持 `roleType=1`，人数 `0..10` |
+| `pd` | `domain` / `--domain` | 无 | 法律、教育、金融、医疗、科技等领域优化 |
+| `audioMode` / `audioUrl` | 输入类型自动推导 | `fileStream` | 外链使用 `urlLink`，必须提供 `audio_url` |
+| `standardWav` | `standard_wav` / `--standard-wav` | `0` | 是否 16 kHz/16 bit/单声道标准 WAV |
+| `languageType` | `language_type` / `--language-type` | `1` | `1` 自动中英、`2` 中文、`4` 纯中文（`language=cn` 时） |
+| `trackMode` | `track_mode` / `--track-mode` | `1` | `1` 混合；`2` 双声道分轨，要求真实双声道且与角色分离互斥 |
+| `transLanguage` / `transMode` | `translation_language` / `translation_mode` | 无 / `2` | 翻译能力需单独开通；模式 `1` VAD、`2` 段落、`3` 全文 |
+| `eng_seg_max/min/weight` | `segment_max/min/weight` | 引擎默认 | 分段字数控制，范围分别为 0-500、0-50、0-0.05 |
+| `eng_smoothproc` / `eng_colloqproc` | `smooth` / `colloquial` | `true` / `false` | 顺滑与口语规整组合规则与大模型版相同 |
+| `eng_vad_mdn` / `eng_vad_margin` | `vad_mode` / `vad_margin` | `1` / `1` | 远近场；是否保留首尾静音信息 |
+| `eng_rlang` | `cantonese_script` | `1` | 粤语输出简体 `0` 或繁体 `1` |
+
+标准版结果查询的 `result_type` 为 `transfer`、`translate` 或 `predict`。翻译和质检是否可用取决于账号权限；当前工具会保留服务返回的 `trans_result`/`predict_result`，但不会把未开通能力当作普通转写自动重试。标准版 `orderResult` 同样使用 `lattice/lattice2/label.rl_track` 结构，因此 `transcript`、`original_transcript`、`speakers[].segments` 和双声道 `track` 的输出格式与大模型版一致。
+
 ## MCP 使用
 
 对 Agent 直接说明绝对路径即可：
@@ -129,7 +171,7 @@ XFYUN_API_SECRET
 
 本地路径与外链只能二选一。完整业务参数见上面的上传参数对照表。
 
-普通响应必须同时保存 `order_id` 和 `signature_random`。自动切片响应会返回 `split=true` 和 `parts`；必须完整保存每个 part 的两个标识，不能只保留第一个任务。
+大模型版普通响应必须同时保存 `order_id` 和 `signature_random`；标准版只保存 `order_id`。自动切片响应会返回 `split=true` 和 `parts`；大模型版保存每个 part 的两个标识，标准版保存每个 part 的 `order_id`，不能只保留第一个任务。
 
 ### 2. 查询
 
@@ -156,6 +198,30 @@ XFYUN_API_SECRET
   "wait": true
 }
 ```
+
+标准版调用示例：
+
+```json
+{
+  "variant": "standard",
+  "input_path": "/absolute/path/meeting.wav",
+  "language": "cn",
+  "role_type": 1,
+  "role_num": 2
+}
+```
+
+提交返回后只保存 `order_id`，查询时指定同一个 `variant`：
+
+```json
+{
+  "variant": "standard",
+  "order_id": "标准版返回的 order_id",
+  "wait": true
+}
+```
+
+标准版不应传 `signature_random`；大模型版不应省略它。
 
 `/v2/getResult` 查询参数完整对照：
 
@@ -313,6 +379,10 @@ xfyun ifasr \
 
 确认 `XFYUN_API_KEY` 来自当前 APPID 对应的同一个应用，并且使用的是“录音文件转写大模型”服务页提供的应用凭证。不要另外寻找第四种 AccessKey。
 
+### `26601 signa verify fail`（标准版）
+
+标准版签名算法是 `Base64(HMAC-SHA1(MD5(appId+ts), secretkey))`。出现此错误时，优先确认当前应用已经添加并开通“录音文件转写标准版”，并使用该服务管理页面显示的 AppID 与接口密钥；不要把只开通大模型服务的另一套应用凭证混用。当前客户端将 `XFYUN_API_SECRET` 作为标准版 `secretkey`，标准版不需要 `XFYUN_API_KEY`。系统时间偏差、复制了旧应用的密钥或服务尚未同步，也会导致相同错误。
+
 ### `100020 语言验证失败`
 
 确认服务已在当前应用开通、额度可用，并且请求的 `autodialect` 或 `autominor` 能力已生效。新开通服务可能需要短暂同步。该错误属于权限/能力校验，不应自动无限重试，也不应未经用户确认擅自切换语言模式。
@@ -320,7 +390,7 @@ xfyun ifasr \
 ### `100008`、`100009`、`100012`
 
 - `100008`：请求时间超过限制，检查系统时间与时区。
-- `100009`：签名校验失败，检查三项凭证是否来自同一应用。
+- `100009`：大模型版签名校验失败，检查三项凭证是否来自同一应用；标准版对应 `26601 signa verify fail`。
 - `100012`：请求超过频率限制，降低提交/查询频率。
 
 ### 音频失败或空文本
@@ -333,4 +403,6 @@ xfyun ifasr \
 
 媒体预处理可用 CLI 的 `xfyun media info` 查询采样率、声道、编码、码率和时长，用 `xfyun media convert` 在单/双声道、采样率和码率之间转换；MCP 对应 `xfyun_media`。
 
-官方接口文档：[录音文件转写大模型](https://www.xfyun.cn/doc/spark/asr_llm/Ifasr_llm.html)
+标准版已用官方签名示例向量、模拟上传/查询服务和标准版参数映射完成自动化协议测试；真实账号验收需要当前应用开通标准版并提供该服务的有效接口密钥。若返回 `26601 signa verify fail`，应先按上面的服务开通和凭证排查处理，不能把它当成标准版已通过线上验收。
+
+官方接口文档：[录音文件转写标准版](https://www.xfyun.cn/doc/asr/ifasr_new/API.html)、[录音文件转写大模型](https://www.xfyun.cn/doc/spark/asr_llm/Ifasr_llm.html)

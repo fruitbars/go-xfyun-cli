@@ -20,6 +20,14 @@ import (
 )
 
 const Endpoint = "https://office-api-ist-dx.iflyaisol.com"
+const StandardEndpoint = "https://raasr.xfyun.cn/v2/api"
+
+type Variant string
+
+const (
+	VariantLLM      Variant = "llm"
+	VariantStandard Variant = "standard"
+)
 
 type Code string
 
@@ -53,6 +61,7 @@ type Response struct {
 }
 
 type Options struct {
+	Variant         Variant
 	Language        string
 	DurationMS      int64
 	Domain          string
@@ -67,6 +76,17 @@ type Options struct {
 	CantoneseScript *int
 	Analysis        bool
 	ResultType      string
+	HotWord         string
+	SysDicts        string
+	Candidate       int
+	StandardWav     int
+	LanguageType    int
+	TransLanguage   string
+	TransMode       int
+	EngSegMax       int
+	EngSegMin       int
+	EngSegWeight    float64
+	VADMargin       int
 	PollInterval    time.Duration
 	MaxWait         time.Duration
 	Extra           map[string]string
@@ -87,12 +107,15 @@ var managedIFASRParameters = map[string]struct{}{
 	"language": {}, "pd": {}, "callbackUrl": {}, "roleType": {}, "roleNum": {},
 	"featureIds": {}, "audioMode": {}, "audioUrl": {}, "eng_smoothproc": {},
 	"eng_colloqproc": {}, "eng_vad_mdn": {}, "eng_rlang": {}, "analysis": {},
-	"trackMode": {},
+	"trackMode": {}, "ts": {}, "signa": {}, "sysDicts": {}, "hotWord": {},
+	"candidate": {}, "standardWav": {}, "languageType": {}, "transLanguage": {},
+	"transMode": {}, "eng_seg_max": {}, "eng_seg_min": {}, "eng_seg_weight": {},
+	"eng_vad_margin": {},
 }
 
 type Result struct {
 	OrderID            string              `json:"order_id"`
-	SignatureRand      string              `json:"signature_random"`
+	SignatureRand      string              `json:"signature_random,omitempty"`
 	Status             int                 `json:"status"`
 	Transcript         string              `json:"transcript,omitempty"`
 	OriginalTranscript string              `json:"original_transcript,omitempty"`
@@ -121,12 +144,13 @@ type Client struct {
 	Credentials config.Credentials
 	HTTPClient  *http.Client
 	Endpoint    string
+	Variant     Variant
 	Now         func() time.Time
 }
 
 func (c *Client) Transcribe(ctx context.Context, audio io.Reader, fileName string, fileSize int64, opts Options) (Result, error) {
 	var result Result
-	if err := c.Credentials.ValidateSigned(); err != nil {
+	if err := c.validate(c.variant(opts)); err != nil {
 		return result, err
 	}
 	if fileSize <= 0 {
@@ -138,12 +162,19 @@ func (c *Client) Transcribe(ctx context.Context, audio io.Reader, fileName strin
 	if err := validateFileName(fileName); err != nil {
 		return result, err
 	}
+	if opts.Variant == "" && c.Variant != "" {
+		opts.Variant = c.Variant
+	}
 	if err := normalizeOptions(&opts); err != nil {
 		return result, err
 	}
-	randomValue, err := signatureRandom(opts.SignatureRand)
-	if err != nil {
-		return result, err
+	randomValue := opts.SignatureRand
+	var err error
+	if c.variant(opts) == VariantLLM {
+		randomValue, err = signatureRandom(opts.SignatureRand)
+		if err != nil {
+			return result, err
+		}
 	}
 	uploadResponse, err := c.Upload(ctx, audio, fileName, fileSize, randomValue, opts)
 	if err != nil {
@@ -163,7 +194,7 @@ func (c *Client) Transcribe(ctx context.Context, audio io.Reader, fileName strin
 // remote byte size and keep the recording within one service order's limits.
 func (c *Client) TranscribeURL(ctx context.Context, audioURL, fileName string, fileSize int64, opts Options) (Result, error) {
 	var result Result
-	if err := c.Credentials.ValidateSigned(); err != nil {
+	if err := c.validate(c.variant(opts)); err != nil {
 		return result, err
 	}
 	if err := validateAudioURL(audioURL); err != nil {
@@ -178,12 +209,19 @@ func (c *Client) TranscribeURL(ctx context.Context, audioURL, fileName string, f
 	if err := validateFileName(fileName); err != nil {
 		return result, err
 	}
+	if opts.Variant == "" && c.Variant != "" {
+		opts.Variant = c.Variant
+	}
 	if err := normalizeOptions(&opts); err != nil {
 		return result, err
 	}
-	randomValue, err := signatureRandom(opts.SignatureRand)
-	if err != nil {
-		return result, err
+	randomValue := opts.SignatureRand
+	var err error
+	if c.variant(opts) == VariantLLM {
+		randomValue, err = signatureRandom(opts.SignatureRand)
+		if err != nil {
+			return result, err
+		}
 	}
 	uploadResponse, err := c.UploadURL(ctx, audioURL, fileName, fileSize, randomValue, opts)
 	if err != nil {
@@ -199,37 +237,49 @@ func (c *Client) TranscribeURL(ctx context.Context, audioURL, fileName string, f
 }
 
 func (c *Client) Upload(ctx context.Context, audio io.Reader, fileName string, fileSize int64, signatureRandom string, opts Options) (Response, error) {
-	if err := c.Credentials.ValidateSigned(); err != nil {
+	if err := c.validate(c.variant(opts)); err != nil {
 		return Response{}, err
 	}
 	params := c.uploadParams(fileName, fileSize, signatureRandom, opts)
-	signature := auth.HMACSHA1(params, c.Credentials.APISecret)
-	endpoint := strings.TrimRight(c.endpoint(), "/") + "/v2/upload?" + auth.Query(params)
+	endpoint := strings.TrimRight(c.endpointFor(opts), "/") + "/v2/upload?" + auth.Query(params)
+	if c.variant(opts) == VariantStandard {
+		endpoint = c.standardEndpoint(opts, params)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, audio)
 	if err != nil {
 		return Response{}, fmt.Errorf("create IFASR upload request: %w", err)
 	}
 	req.ContentLength = fileSize
 	req.Header.Set("Content-Type", "application/octet-stream")
-	req.Header.Set("signature", signature)
+	if c.variant(opts) == VariantLLM {
+		req.Header.Set("signature", auth.HMACSHA1(params, c.Credentials.APISecret))
+	}
 	return c.do(req)
 }
 
 func (c *Client) UploadURL(ctx context.Context, audioURL, fileName string, fileSize int64, signatureRandom string, opts Options) (Response, error) {
-	if err := c.Credentials.ValidateSigned(); err != nil {
+	if err := c.validate(c.variant(opts)); err != nil {
 		return Response{}, err
 	}
 	params := c.uploadParams(fileName, fileSize, signatureRandom, opts)
 	params["audioMode"] = "urlLink"
 	params["audioUrl"] = audioURL
-	signature := auth.HMACSHA1(params, c.Credentials.APISecret)
-	endpoint := strings.TrimRight(c.endpoint(), "/") + "/v2/upload?" + auth.Query(params)
+	endpoint := strings.TrimRight(c.endpointFor(opts), "/") + "/v2/upload?" + auth.Query(params)
+	if c.variant(opts) == VariantStandard {
+		endpoint = c.standardEndpoint(opts, params)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, http.NoBody)
 	if err != nil {
 		return Response{}, fmt.Errorf("create IFASR URL upload request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/octet-stream")
-	req.Header.Set("signature", signature)
+	if c.variant(opts) == VariantStandard {
+		req.Header.Set("Content-Type", "application/json")
+	} else {
+		req.Header.Set("Content-Type", "application/octet-stream")
+	}
+	if c.variant(opts) == VariantLLM {
+		req.Header.Set("signature", auth.HMACSHA1(params, c.Credentials.APISecret))
+	}
 	return c.do(req)
 }
 
@@ -237,6 +287,79 @@ func (c *Client) uploadParams(fileName string, fileSize int64, signatureRandom s
 	params := make(map[string]string, len(opts.Extra)+20)
 	for key, value := range opts.Extra {
 		params[key] = value
+	}
+	if c.variant(opts) == VariantStandard {
+		params["appId"] = c.Credentials.AppID
+		ts := strconv.FormatInt(c.now().Unix(), 10)
+		params["ts"] = ts
+		params["fileSize"] = strconv.FormatInt(fileSize, 10)
+		params["fileName"] = filepath.Base(fileName)
+		params["duration"] = strconv.FormatInt(opts.DurationMS, 10)
+		params["audioMode"] = "fileStream"
+		if opts.Language != "" {
+			params["language"] = opts.Language
+		}
+		if opts.Domain != "" {
+			params["pd"] = opts.Domain
+		}
+		if opts.TrackMode != 0 {
+			params["trackMode"] = strconv.Itoa(opts.TrackMode)
+		}
+		if opts.CallbackURL != "" {
+			params["callbackUrl"] = opts.CallbackURL
+		}
+		if opts.RoleType != 0 {
+			params["roleType"] = strconv.Itoa(opts.RoleType)
+		}
+		if opts.RoleNum != 0 {
+			params["roleNum"] = strconv.Itoa(opts.RoleNum)
+		}
+		if opts.HotWord != "" {
+			params["hotWord"] = opts.HotWord
+		}
+		if opts.SysDicts != "" {
+			params["sysDicts"] = opts.SysDicts
+		}
+		if opts.Candidate != 0 {
+			params["candidate"] = strconv.Itoa(opts.Candidate)
+		}
+		if opts.StandardWav != 0 {
+			params["standardWav"] = strconv.Itoa(opts.StandardWav)
+		}
+		if opts.LanguageType != 0 {
+			params["languageType"] = strconv.Itoa(opts.LanguageType)
+		}
+		if opts.TransLanguage != "" {
+			params["transLanguage"] = opts.TransLanguage
+		}
+		if opts.TransMode != 0 {
+			params["transMode"] = strconv.Itoa(opts.TransMode)
+		}
+		if opts.EngSegMax != 0 {
+			params["eng_seg_max"] = strconv.Itoa(opts.EngSegMax)
+		}
+		if opts.EngSegMin != 0 {
+			params["eng_seg_min"] = strconv.Itoa(opts.EngSegMin)
+		}
+		if opts.EngSegWeight != 0 {
+			params["eng_seg_weight"] = strconv.FormatFloat(opts.EngSegWeight, 'f', -1, 64)
+		}
+		if opts.Smooth != nil {
+			params["eng_smoothproc"] = strconv.FormatBool(*opts.Smooth)
+		}
+		if opts.Colloquial != nil {
+			params["eng_colloqproc"] = strconv.FormatBool(*opts.Colloquial)
+		}
+		if opts.VADMode != 0 {
+			params["eng_vad_mdn"] = strconv.Itoa(opts.VADMode)
+		}
+		if opts.VADMargin != 0 {
+			params["eng_vad_margin"] = strconv.Itoa(opts.VADMargin)
+		}
+		if opts.CantoneseScript != nil {
+			params["eng_rlang"] = strconv.Itoa(*opts.CantoneseScript)
+		}
+		return params
 	}
 	params["appId"] = c.Credentials.AppID
 	params["accessKeyId"] = c.Credentials.APIKey
@@ -288,8 +411,17 @@ func (c *Client) uploadParams(fileName string, fileSize int64, signatureRandom s
 }
 
 func normalizeOptions(opts *Options) error {
-	if opts.Language == "" {
+	if opts.Variant == "" {
+		opts.Variant = VariantLLM
+	}
+	if opts.Variant != VariantLLM && opts.Variant != VariantStandard {
+		return fmt.Errorf("IFASR variant must be llm or standard")
+	}
+	if opts.Language == "" && opts.Variant == VariantLLM {
 		opts.Language = "autodialect"
+	}
+	if opts.Language == "" && opts.Variant == VariantStandard {
+		opts.Language = "cn"
 	}
 	if opts.ResultType == "" {
 		opts.ResultType = "transfer"
@@ -311,6 +443,9 @@ func signatureRandom(configured string) (string, error) {
 }
 
 func validateOptions(opts Options) error {
+	if opts.Variant == VariantStandard {
+		return validateStandardOptions(opts)
+	}
 	if opts.Language != "" && opts.Language != "autodialect" && opts.Language != "autominor" {
 		return fmt.Errorf("IFASR language must be autodialect or autominor")
 	}
@@ -386,6 +521,72 @@ func validateOptions(opts Options) error {
 	return nil
 }
 
+func validateStandardOptions(opts Options) error {
+	if opts.Language == "" {
+		return fmt.Errorf("standard IFASR language is required")
+	}
+	if opts.RoleType != 0 && opts.RoleType != 1 {
+		return fmt.Errorf("standard IFASR role_type must be 0 or 1")
+	}
+	if opts.RoleNum < 0 || opts.RoleNum > 10 {
+		return fmt.Errorf("standard IFASR role_num must be between 0 and 10")
+	}
+	if opts.RoleNum != 0 && opts.RoleType == 0 {
+		return fmt.Errorf("standard IFASR role_num requires role_type=1")
+	}
+	if opts.TrackMode != 0 && opts.TrackMode != 1 && opts.TrackMode != 2 {
+		return fmt.Errorf("standard IFASR track_mode must be 1 or 2")
+	}
+	if opts.TrackMode == 2 && opts.RoleType != 0 {
+		return fmt.Errorf("standard IFASR track_mode=2 cannot be combined with role_type")
+	}
+	if opts.Candidate != 0 && opts.Candidate != 1 {
+		return fmt.Errorf("standard IFASR candidate must be 0 or 1")
+	}
+	if opts.StandardWav != 0 && opts.StandardWav != 1 {
+		return fmt.Errorf("standard IFASR standard_wav must be 0 or 1")
+	}
+	if opts.LanguageType != 0 && opts.LanguageType != 1 && opts.LanguageType != 2 && opts.LanguageType != 4 {
+		return fmt.Errorf("standard IFASR language_type must be 1, 2, or 4")
+	}
+	if opts.TransMode < 0 || opts.TransMode > 3 {
+		return fmt.Errorf("standard IFASR trans_mode must be between 0 and 3")
+	}
+	if opts.EngSegMax < 0 || opts.EngSegMax > 500 || opts.EngSegMin < 0 || opts.EngSegMin > 50 {
+		return fmt.Errorf("standard IFASR segment limits are eng_seg_max 0-500 and eng_seg_min 0-50")
+	}
+	if opts.EngSegWeight < 0 || opts.EngSegWeight > 0.05 {
+		return fmt.Errorf("standard IFASR eng_seg_weight must be between 0 and 0.05")
+	}
+	if opts.VADMode != 0 && opts.VADMode != 1 && opts.VADMode != 2 {
+		return fmt.Errorf("standard IFASR vad_mode must be 1 or 2")
+	}
+	if opts.VADMargin != 0 && opts.VADMargin != 1 {
+		return fmt.Errorf("standard IFASR vad_margin must be 0 or 1")
+	}
+	if opts.CantoneseScript != nil && *opts.CantoneseScript != 0 && *opts.CantoneseScript != 1 {
+		return fmt.Errorf("standard IFASR cantonese_script must be 0 or 1")
+	}
+	if opts.ResultType != "transfer" && opts.ResultType != "translate" && opts.ResultType != "predict" {
+		return fmt.Errorf("standard IFASR result_type must be transfer, translate, or predict")
+	}
+	if opts.CallbackURL != "" {
+		parsed, err := url.Parse(opts.CallbackURL)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			return fmt.Errorf("standard IFASR callback URL must be an absolute http or https URL")
+		}
+	}
+	if len(opts.CallbackURL) > 512 {
+		return fmt.Errorf("standard IFASR callback URL exceeds 512 characters")
+	}
+	for key := range opts.Extra {
+		if _, managed := managedIFASRParameters[key]; managed {
+			return fmt.Errorf("standard IFASR parameter %s has a first-class option and cannot be supplied through extra", key)
+		}
+	}
+	return nil
+}
+
 func validateAudioURL(value string) error {
 	if len(value) > 512 {
 		return fmt.Errorf("IFASR audio URL exceeds 512 characters")
@@ -400,25 +601,49 @@ func validateAudioURL(value string) error {
 func validateFileName(fileName string) error {
 	ext := strings.ToLower(filepath.Ext(fileName))
 	switch ext {
-	case ".mp3", ".wav", ".pcm", ".opus", ".flac", ".ogg", ".speex":
+	case ".mp3", ".wav", ".pcm", ".opus", ".flac", ".ogg", ".speex", ".aac", ".m4a", ".amr", ".lyb", ".ac3", ".ape", ".m4r", ".mp4", ".acc", ".wma":
 		return nil
 	default:
-		return fmt.Errorf("unsupported IFASR audio extension %q; use mp3, wav, pcm, opus, flac, ogg, or speex", ext)
+		return fmt.Errorf("unsupported IFASR audio extension %q; use a format supported by the selected IFASR variant", ext)
 	}
 }
 
 func (c *Client) Query(ctx context.Context, orderID, signatureRandom, resultType string) (Response, error) {
-	if err := c.Credentials.ValidateSigned(); err != nil {
+	variant := c.Variant
+	if variant == "" {
+		variant = VariantLLM
+	}
+	if err := c.validate(variant); err != nil {
 		return Response{}, err
 	}
-	if orderID == "" || signatureRandom == "" {
-		return Response{}, fmt.Errorf("order ID and signature random are required")
+	if orderID == "" {
+		return Response{}, fmt.Errorf("order ID is required")
 	}
 	if resultType == "" {
 		resultType = "transfer"
 	}
-	if err := validateOptions(Options{ResultType: resultType}); err != nil {
+	if err := validateOptions(Options{Variant: variant, ResultType: resultType, Language: func() string {
+		if variant == VariantStandard {
+			return "cn"
+		}
+		return "autodialect"
+	}()}); err != nil {
 		return Response{}, err
+	}
+	if variant == VariantLLM && signatureRandom == "" {
+		return Response{}, fmt.Errorf("signature random is required for the large-model IFASR API")
+	}
+	if variant == VariantStandard {
+		ts := strconv.FormatInt(c.now().Unix(), 10)
+		params := map[string]string{"appId": c.Credentials.AppID, "ts": ts, "orderId": orderID, "resultType": resultType}
+		params["signa"] = auth.StandardIFASRSigna(c.Credentials.AppID, ts, c.Credentials.APISecret)
+		endpoint := strings.TrimRight(c.endpointForOptions(variant), "/") + "/getResult?" + auth.Query(params)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, http.NoBody)
+		if err != nil {
+			return Response{}, fmt.Errorf("create standard IFASR query request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		return c.do(req)
 	}
 	params := map[string]string{
 		"accessKeyId":     c.Credentials.APIKey,
@@ -513,6 +738,51 @@ func (c *Client) endpoint() string {
 		return c.Endpoint
 	}
 	return Endpoint
+}
+
+func (c *Client) variant(opts Options) Variant {
+	if opts.Variant != "" {
+		return opts.Variant
+	}
+	if c.Variant != "" {
+		return c.Variant
+	}
+	return VariantLLM
+}
+
+func (c *Client) validate(variant Variant) error {
+	if variant == VariantStandard {
+		return c.Credentials.ValidateStandardIFASR()
+	}
+	return c.Credentials.ValidateSigned()
+}
+
+func (c *Client) endpointFor(opts Options) string {
+	if c.Endpoint != "" {
+		return c.Endpoint
+	}
+	if c.variant(opts) == VariantStandard {
+		return StandardEndpoint
+	}
+	return c.endpoint()
+}
+
+func (c *Client) endpointForOptions(variant Variant) string {
+	if c.Endpoint != "" {
+		return c.Endpoint
+	}
+	if variant == VariantStandard {
+		return StandardEndpoint
+	}
+	return c.endpoint()
+}
+
+func (c *Client) standardEndpoint(opts Options, params map[string]string) string {
+	params["signa"] = auth.StandardIFASRSigna(c.Credentials.AppID, params["ts"], c.Credentials.APISecret)
+	delete(params, "accessKeyId")
+	delete(params, "dateTime")
+	delete(params, "signatureRandom")
+	return strings.TrimRight(c.endpointFor(opts), "/") + "/upload?" + auth.Query(params)
 }
 
 func (c *Client) now() time.Time {

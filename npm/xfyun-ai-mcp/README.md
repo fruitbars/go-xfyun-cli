@@ -6,7 +6,7 @@ Cross-platform `npx` launcher for the `xfyun-ai-mcp` stdio MCP server.
 npx -y @fruitbars/xfyun-ai-mcp@latest --version
 ```
 
-The launcher selects an npm optional dependency for Windows, macOS, or Linux on x64/arm64 and starts the native Go server with inherited stdio and environment variables. It exposes six tools: `xfyun_ocr`, `xfyun_tts`, `xfyun_rtasr`, `xfyun_ifasr_submit`, `xfyun_ifasr_result`, and `xfyun_media`.
+The launcher selects an npm optional dependency for Windows, macOS, or Linux on x64/arm64 and starts the native Go server with inherited stdio and environment variables. It exposes six tools: `xfyun_ocr`, `xfyun_tts` (XFYun super-smart large-model synthesis), `xfyun_rtasr`, `xfyun_ifasr_submit`, `xfyun_ifasr_result`, and `xfyun_media`.
 
 Configure `XFYUN_APP_ID`, `XFYUN_API_KEY`, and `XFYUN_API_SECRET` from the same XFYun application in the MCP host. There is no separate fourth IFASR credential. Restart the host after changing its environment; an already-running MCP process cannot inherit later shell changes.
 
@@ -28,9 +28,9 @@ The optional media helper is passed to the native server automatically. TTS text
 
 ## Recording transcription (IFASR)
 
-Use IFASR for completed `mp3`, `wav`, `pcm`, `opus`, `flac`, `ogg`, or `speex` recordings. Submit a local path with `xfyun_ifasr_submit`, then preserve both `order_id` and `signature_random` and pass them to `xfyun_ifasr_result`. A split submission returns `parts`; preserve every part and pass the ordered references as `orders` so the result tool can merge them.
+Use IFASR for completed recordings. The default `variant="llm"` selects XFYun's Spark large-model recording transcription; set `variant="standard"` for the standard recording transcription API. The large-model variant supports `mp3`, `wav`, `pcm`, `opus`, `flac`, `ogg`, and `speex`; standard also accepts the official `aac`, `m4a`, `amr`, `ac3`, `ape`, `m4r`, `mp4`, `acc`, and `wma` formats. Submit a local path with `xfyun_ifasr_submit`. Large-model orders return `order_id` plus `signature_random`; standard orders return only `order_id`. A split submission returns `parts`; preserve every part and pass the ordered references as `orders` so the result tool can merge them.
 
-The submit tool accepts either local `input_path`, or `audio_url` together with `file_name` and `file_size_bytes` for XFYun `urlLink` mode. Oversized local files are split automatically; remote URLs must already fit one 5-hour/500-MiB order. `track_mode=2` enables stereo channel separation and cannot be combined with speaker-role separation or language analysis.
+The submit tool accepts either local `input_path`, or `audio_url` together with `file_name` and `file_size_bytes` for XFYun `urlLink` mode. Oversized local files are split automatically; remote URLs must already fit one 5-hour/500-MiB order. `track_mode=2` enables stereo channel separation and cannot be combined with speaker-role separation or language analysis. Standard uses `appId + ts + signa` and maps `XFYUN_API_SECRET` to the service's `secretkey`; it does not use `signature_random`.
 
 Status `0` means created, `3` processing, `4` complete, and `-1` failed. Use `wait=false` for one status check when the MCP host has a short timeout. For batches, save each order reference immediately after submission so an interrupted run can resume without a duplicate upload.
 
@@ -40,7 +40,7 @@ The result also includes `speakers`, grouping processed text by the service-retu
 
 Use `xfyun_media` with `operation=info` to inspect sample rate, channels, codec, bitrate, and duration, or with `operation=convert` to change mono/stereo channels, sample rate, and bitrate. Conversion requires `output_path` and does not replace an existing file unless `force=true`. `ffmpeg` is provided by the launcher; `ffprobe` is used when available and the server falls back to parsing FFmpeg metadata. Set `XFYUN_FFPROBE_PATH` when a dedicated probe binary is available.
 
-The default language mode is `autodialect` (Chinese, English, and dialects); `autominor` enables multilingual recognition when that capability is intended. Domain values are validated against XFYun's complete list. Legacy lfasr parameters such as `eng_max_clusters` and `eng_min_clusters` are accepted through `extra` for engine compatibility and forwarded unchanged; new integrations should prefer `role_type` and `role_num`. The client accepts XFYun's observed `json_1best` variants whether the nested JSON is returned as a string or an object.
+The large-model default language mode is `autodialect` (Chinese, English, and dialects); `autominor` enables multilingual recognition when that capability is intended. Standard defaults to `cn` and exposes standard-only controls such as `hot_word`, `sys_dicts`, `candidate`, `language_type`, translation, and segment limits. Domain values are validated against XFYun's complete list. Legacy lfasr parameters such as `eng_max_clusters` and `eng_min_clusters` are accepted through `extra` for engine compatibility and forwarded unchanged; new integrations should prefer the variant's documented first-class controls. The client accepts XFYun's observed `json_1best` variants whether the nested JSON is returned as a string or an object.
 
 Common setup errors:
 

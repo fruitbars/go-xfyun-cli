@@ -35,7 +35,7 @@ func New(credentials config.Credentials) *mcp.Server {
 		Description: "OCR, speech synthesis, and speech transcription through XFYun large-model APIs",
 		Version:     version.Current,
 	}, &mcp.ServerOptions{
-		Instructions: "XFYun large-model media tools: use xfyun_ocr for document images, xfyun_tts for speech synthesis, xfyun_rtasr for live-style PCM/Opus/Speex streams, and xfyun_ifasr_submit plus xfyun_ifasr_result for completed recordings. Use xfyun_media to inspect or convert local audio channels, sample rates, and bitrates. Use OCR annotate=true only when the user asks for layout types drawn on the source. Multi-page OCR returns an NDJSON output_path; consume it incrementally instead of loading the entire file. Preserve both IFASR identifiers and poll with wait=false when the host has short tool timeouts. Credentials come from XFYUN_APP_ID, XFYUN_API_KEY, and XFYUN_API_SECRET. File paths are local to this server process. Never overwrite OCR, TTS, or media output unless the user authorized force=true.",
+		Instructions: "XFYun media tools: use xfyun_ocr for document images, xfyun_tts for super-smart large-model speech synthesis, xfyun_rtasr for live-style PCM/Opus/Speex streams, and xfyun_ifasr_submit plus xfyun_ifasr_result for completed recordings. IFASR defaults to the Spark large-model variant; set variant=standard for the standard recording transcription API. Standard orders need only order_id; large-model orders need order_id plus signature_random. Use xfyun_media to inspect or convert local audio channels, sample rates, and bitrates. Use OCR annotate=true only when the user asks for layout types drawn on the source. Multi-page OCR returns an NDJSON output_path; consume it incrementally instead of loading the entire file. Preserve IFASR identifiers and poll with wait=false when the host has short timeouts. Credentials come from XFYUN_APP_ID, XFYUN_API_KEY, and XFYUN_API_SECRET. File paths are local to this server process. Never overwrite OCR, TTS, or media output unless the user authorized force=true.",
 	})
 
 	addOCRTool(server, service)
@@ -519,24 +519,36 @@ func addRTASRTool(server *mcp.Server, service *Service) {
 }
 
 type IFASRSubmitInput struct {
-	InputPath        string            `json:"input_path,omitempty" jsonschema:"Local mp3, wav, pcm, opus, flac, ogg, or speex audio path. Use exactly one of input_path or audio_url. Local files over 5 hours or 500 MiB are split automatically."`
-	AudioURL         string            `json:"audio_url,omitempty" jsonschema:"Absolute HTTP(S) audio URL for audioMode=urlLink. Use exactly one of input_path or audio_url; maximum 512 characters."`
-	FileName         string            `json:"file_name,omitempty" jsonschema:"Remote audio filename including a supported extension; required with audio_url."`
-	FileSizeBytes    int64             `json:"file_size_bytes,omitempty" jsonschema:"Remote audio byte size; required with audio_url and limited to 500 MiB."`
-	Language         string            `json:"language,omitempty" jsonschema:"autodialect or autominor. Default: autodialect."`
-	DurationMS       int64             `json:"duration_ms,omitempty" jsonschema:"Known duration in milliseconds. Zero probes local files automatically and disables duration validation for audio_url."`
-	Domain           string            `json:"domain,omitempty" jsonschema:"Domain optimization: court, finance, medical, tech, sport, edu, isp, gov, game, ecom, mil, com, life, ent, culture, or car."`
-	TrackMode        int               `json:"track_mode,omitempty" jsonschema:"Channel mode: 1 mixed or 2 stereo tracks. track_mode=2 is incompatible with role_type and language_analysis."`
-	RoleType         int               `json:"role_type,omitempty" jsonschema:"Speaker separation: 0 off, 1 generic, 3 voiceprint."`
-	RoleNum          int               `json:"role_num,omitempty" jsonschema:"Expected speaker count from 0 to 10."`
-	FeatureIDs       string            `json:"feature_ids,omitempty" jsonschema:"Comma-separated registered voiceprint IDs; role_type=3 only; maximum 64."`
-	CallbackURL      string            `json:"callback_url,omitempty" jsonschema:"GET callback URL invoked after completion; maximum 512 characters."`
-	Smooth           *bool             `json:"smooth,omitempty" jsonschema:"Enable transcript smoothing. Service default: true."`
-	Colloquial       *bool             `json:"colloquial,omitempty" jsonschema:"Enable colloquial normalization. Service default: false."`
-	VADMode          int               `json:"vad_mode,omitempty" jsonschema:"VAD mode: 1 far field or 2 near field."`
-	CantoneseScript  *int              `json:"cantonese_script,omitempty" jsonschema:"Cantonese output: 0 simplified or 1 traditional. Service default: 1."`
-	LanguageAnalysis bool              `json:"language_analysis,omitempty" jsonschema:"Enable spoken-language analysis; multilingual entitlement required. Query result_type=analysis or transfer,analysis."`
-	Extra            map[string]string `json:"extra,omitempty" jsonschema:"Additional documented upload query parameters."`
+	Variant             string            `json:"variant,omitempty" jsonschema:"Recording transcription engine: llm (default, Spark large model) or standard (legacy standard IFASR)."`
+	InputPath           string            `json:"input_path,omitempty" jsonschema:"Local recording path. LLM supports mp3, wav, pcm, opus, flac, ogg, speex; standard also accepts aac, m4a, amr, ac3, ape, m4r, mp4, acc, wma. Use exactly one of input_path or audio_url. Local files over 5 hours or 500 MiB are split automatically."`
+	AudioURL            string            `json:"audio_url,omitempty" jsonschema:"Absolute HTTP(S) audio URL for audioMode=urlLink. Use exactly one of input_path or audio_url; maximum 512 characters."`
+	FileName            string            `json:"file_name,omitempty" jsonschema:"Remote audio filename including a supported extension; required with audio_url."`
+	FileSizeBytes       int64             `json:"file_size_bytes,omitempty" jsonschema:"Remote audio byte size; required with audio_url and limited to 500 MiB."`
+	Language            string            `json:"language,omitempty" jsonschema:"LLM: autodialect or autominor (default autodialect); standard: cn, en, ja, and other enabled languages (default cn)."`
+	DurationMS          int64             `json:"duration_ms,omitempty" jsonschema:"Known duration in milliseconds. Zero probes local files automatically and disables duration validation for audio_url."`
+	Domain              string            `json:"domain,omitempty" jsonschema:"Domain optimization: court, finance, medical, tech, sport, edu, isp, gov, game, ecom, mil, com, life, ent, culture, or car."`
+	TrackMode           int               `json:"track_mode,omitempty" jsonschema:"Channel mode: 1 mixed or 2 stereo tracks. track_mode=2 is incompatible with role_type and language_analysis."`
+	RoleType            int               `json:"role_type,omitempty" jsonschema:"Speaker separation: 0 off, 1 generic, 3 voiceprint."`
+	RoleNum             int               `json:"role_num,omitempty" jsonschema:"Expected speaker count from 0 to 10."`
+	FeatureIDs          string            `json:"feature_ids,omitempty" jsonschema:"Comma-separated registered voiceprint IDs; role_type=3 only; maximum 64."`
+	CallbackURL         string            `json:"callback_url,omitempty" jsonschema:"GET callback URL invoked after completion; maximum 512 characters."`
+	Smooth              *bool             `json:"smooth,omitempty" jsonschema:"Enable transcript smoothing. Service default: true."`
+	Colloquial          *bool             `json:"colloquial,omitempty" jsonschema:"Enable colloquial normalization. Service default: false."`
+	VADMode             int               `json:"vad_mode,omitempty" jsonschema:"VAD mode: 1 far field or 2 near field."`
+	CantoneseScript     *int              `json:"cantonese_script,omitempty" jsonschema:"Cantonese output: 0 simplified or 1 traditional. Service default: 1."`
+	LanguageAnalysis    bool              `json:"language_analysis,omitempty" jsonschema:"Enable spoken-language analysis; multilingual entitlement required. Query result_type=analysis or transfer,analysis."`
+	HotWord             string            `json:"hot_word,omitempty" jsonschema:"Standard only: pipe-separated hot words."`
+	SysDicts            string            `json:"sys_dicts,omitempty" jsonschema:"Standard only: system dictionary names."`
+	Candidate           int               `json:"candidate,omitempty" jsonschema:"Standard only: multi-candidate output, 0 or 1."`
+	StandardWav         int               `json:"standard_wav,omitempty" jsonschema:"Standard only: standard 16k/16bit/mono WAV, 0 or 1."`
+	LanguageType        int               `json:"language_type,omitempty" jsonschema:"Standard only: language mode 1 automatic, 2 Chinese, or 4 pure Chinese."`
+	TranslationLanguage string            `json:"translation_language,omitempty" jsonschema:"Standard only: target translation language."`
+	TranslationMode     int               `json:"translation_mode,omitempty" jsonschema:"Standard only: translation mode 1 VAD, 2 paragraph, or 3 full text."`
+	SegmentMax          int               `json:"segment_max,omitempty" jsonschema:"Standard only: maximum segment characters, 0-500."`
+	SegmentMin          int               `json:"segment_min,omitempty" jsonschema:"Standard only: minimum segment characters, 0-50."`
+	SegmentWeight       float64           `json:"segment_weight,omitempty" jsonschema:"Standard only: segment character weight, 0-0.05."`
+	VADMargin           int               `json:"vad_margin,omitempty" jsonschema:"Standard only: include leading/trailing silence, 0 or 1."`
+	Extra               map[string]string `json:"extra,omitempty" jsonschema:"Additional documented upload query parameters."`
 }
 
 type IFASRSubmitOutput struct {
@@ -550,7 +562,7 @@ type IFASRSubmitOutput struct {
 type IFASRSubmitPart struct {
 	Index            int    `json:"index"`
 	OrderID          string `json:"order_id"`
-	SignatureRandom  string `json:"signature_random"`
+	SignatureRandom  string `json:"signature_random,omitempty"`
 	Size             int64  `json:"size_bytes"`
 	DurationMS       int64  `json:"duration_ms,omitempty"`
 	TaskEstimateTime int64  `json:"task_estimate_time_ms,omitempty"`
@@ -565,12 +577,20 @@ func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, input IFASRSubmitInput) (*mcp.CallToolResult, IFASRSubmitOutput, error) {
 		client := ifasr.Client{Credentials: service.credentials}
 		opts := ifasr.Options{
+			Variant:  ifasr.Variant(input.Variant),
 			Language: input.Language, DurationMS: input.DurationMS, Domain: input.Domain, TrackMode: input.TrackMode,
 			CallbackURL: input.CallbackURL, RoleType: input.RoleType, RoleNum: input.RoleNum, FeatureIDs: input.FeatureIDs,
 			Smooth: input.Smooth, Colloquial: input.Colloquial, VADMode: input.VADMode,
 			CantoneseScript: input.CantoneseScript, Analysis: input.LanguageAnalysis,
+			HotWord: input.HotWord, SysDicts: input.SysDicts, Candidate: input.Candidate, StandardWav: input.StandardWav,
+			LanguageType: input.LanguageType, TransLanguage: input.TranslationLanguage, TransMode: input.TranslationMode,
+			EngSegMax: input.SegmentMax, EngSegMin: input.SegmentMin, EngSegWeight: input.SegmentWeight, VADMargin: input.VADMargin,
 			Extra: input.Extra, NoWait: true,
 		}
+		if opts.Variant != "" && opts.Variant != ifasr.VariantLLM && opts.Variant != ifasr.VariantStandard {
+			return nil, IFASRSubmitOutput{}, fmt.Errorf("variant must be llm or standard")
+		}
+		client.Variant = opts.Variant
 		hasPath, hasURL := input.InputPath != "", input.AudioURL != ""
 		if hasPath == hasURL {
 			return nil, IFASRSubmitOutput{}, fmt.Errorf("provide exactly one of input_path or audio_url")
@@ -616,10 +636,11 @@ type IFASROrderRef struct {
 }
 
 type IFASRResultInput struct {
+	Variant         string          `json:"variant,omitempty" jsonschema:"Recording transcription engine: llm (default) or standard. Must match the submit variant."`
 	OrderID         string          `json:"order_id,omitempty" jsonschema:"Order ID returned for a single-part submission."`
 	SignatureRandom string          `json:"signature_random,omitempty" jsonschema:"Signature random returned for a single-part submission."`
 	Orders          []IFASROrderRef `json:"orders,omitempty" jsonschema:"Ordered references returned in parts for an automatically split submission."`
-	ResultType      string          `json:"result_type,omitempty" jsonschema:"transfer, analysis, or a comma-separated combination. Default: transfer."`
+	ResultType      string          `json:"result_type,omitempty" jsonschema:"LLM: transfer, analysis, or transfer,analysis; standard: transfer, translate, or predict. Default: transfer."`
 	Wait            bool            `json:"wait,omitempty" jsonschema:"Wait and poll until the order finishes."`
 	PollSeconds     int             `json:"poll_seconds,omitempty" jsonschema:"Polling interval in seconds. Default: 2."`
 	MaxWaitSeconds  int             `json:"max_wait_seconds,omitempty" jsonschema:"Maximum wait in seconds. Default: 1800."`
@@ -679,12 +700,22 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 		Description: "Query once or wait for one or more asynchronous recording transcription orders and merge split transcripts in order.",
 		Annotations: annotations(true, false, true),
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, input IFASRResultInput) (*mcp.CallToolResult, IFASRResultOutput, error) {
-		hasSingle := input.OrderID != "" || input.SignatureRandom != ""
+		variant := ifasr.Variant(input.Variant)
+		if variant == "" {
+			variant = ifasr.VariantLLM
+		}
+		if variant != ifasr.VariantLLM && variant != ifasr.VariantStandard {
+			return nil, IFASRResultOutput{}, fmt.Errorf("variant must be llm or standard")
+		}
+		hasSingle := input.OrderID != ""
 		if hasSingle == (len(input.Orders) > 0) {
 			return nil, IFASRResultOutput{}, fmt.Errorf("provide either order_id with signature_random, or orders")
 		}
-		if hasSingle && (input.OrderID == "" || input.SignatureRandom == "") {
+		if hasSingle && variant == ifasr.VariantLLM && input.SignatureRandom == "" {
 			return nil, IFASRResultOutput{}, fmt.Errorf("order_id and signature_random are both required")
+		}
+		if variant == ifasr.VariantStandard && input.SignatureRandom != "" {
+			return nil, IFASRResultOutput{}, fmt.Errorf("standard variant does not use signature_random")
 		}
 		if input.ResultType == "" {
 			input.ResultType = "transfer"
@@ -695,7 +726,7 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 		if input.MaxWaitSeconds <= 0 {
 			input.MaxWaitSeconds = 1800
 		}
-		client := ifasr.Client{Credentials: service.credentials}
+		client := ifasr.Client{Credentials: service.credentials, Variant: variant}
 		orders := input.Orders
 		if hasSingle {
 			orders = []IFASROrderRef{{OrderID: input.OrderID, SignatureRandom: input.SignatureRandom}}
@@ -704,8 +735,16 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 		var transcripts, originals []string
 		var speakers []IFASRSpeakerResult
 		for index, order := range orders {
-			if order.OrderID == "" || order.SignatureRandom == "" {
-				return nil, IFASRResultOutput{}, fmt.Errorf("orders[%d] requires order_id and signature_random", index)
+			if order.OrderID == "" || (variant == ifasr.VariantLLM && order.SignatureRandom == "") {
+				return nil, IFASRResultOutput{}, fmt.Errorf("orders[%d] requires order_id%s", index, func() string {
+					if variant == ifasr.VariantLLM {
+						return " and signature_random"
+					}
+					return ""
+				}())
+			}
+			if variant == ifasr.VariantStandard && order.SignatureRandom != "" {
+				return nil, IFASRResultOutput{}, fmt.Errorf("orders[%d] for standard variant must not include signature_random", index)
 			}
 			part, err := queryIFASRPart(ctx, &client, order, input)
 			if err != nil {
@@ -759,7 +798,7 @@ func queryIFASRPart(ctx context.Context, client *ifasr.Client, order IFASROrderR
 	if input.Wait {
 		var err error
 		result, err = client.Wait(ctx, order.OrderID, order.SignatureRandom, ifasr.Options{
-			ResultType: input.ResultType, PollInterval: time.Duration(input.PollSeconds) * time.Second,
+			Variant: client.Variant, ResultType: input.ResultType, PollInterval: time.Duration(input.PollSeconds) * time.Second,
 			MaxWait: time.Duration(input.MaxWaitSeconds) * time.Second,
 		})
 		if err != nil {

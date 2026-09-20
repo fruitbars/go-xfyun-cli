@@ -1,6 +1,8 @@
 # IFASR 参数
 
-`xfyun_ifasr_submit` 支持 `mp3/wav/pcm/opus/flac/ogg/speex`。讯飞单任务最长 5 小时、最大 500 MiB；工具会自动探测并无损切分超限的本地音频。普通提交保存 `order_id` 和 `signature_random`；自动切分时把返回的 `parts` 引用作为 `orders` 交给 `xfyun_ifasr_result`，工具会查询全部任务并按原顺序合并文本。外链 `urlLink` 需提供 `audio_url`、`file_name`、`file_size_bytes`，远程文件不能在本地自动切片。
+`xfyun_ifasr_submit` 默认使用录音文件转写大模型；传 `variant="standard"` 使用标准版。大模型支持 `mp3/wav/pcm/opus/flac/ogg/speex`，标准版还支持官网列出的 `aac/m4a/amr/ac3/ape/m4r/mp4/acc/wma`。讯飞单任务最长 5 小时、最大 500 MiB；工具会自动探测并无损切分超限的本地音频。大模型提交保存 `order_id` 和 `signature_random`，标准版只保存 `order_id`；自动切分时把返回的 `parts` 引用作为 `orders` 交给 `xfyun_ifasr_result`，工具会查询全部任务并按原顺序合并文本。外链 `urlLink` 需提供 `audio_url`、`file_name`、`file_size_bytes`，远程文件不能在本地自动切片。
+
+标准版使用 `appId + ts + signa`，`signa=Base64(HMAC-SHA1(MD5(appId+ts), XFYUN_API_SECRET))`，默认语言为 `cn`；大模型版使用 `accessKeyId/dateTime/signatureRandom`，默认语言为 `autodialect`。标准版的 `hot_word`、`sys_dicts`、`candidate`、`language_type`、翻译和分段控制参数只在 `variant="standard"` 时使用。
 
 - 语种：`autodialect`（默认）或多语种 `autominor`。
 - 已知时长可填 `duration_ms`；0 表示由随包媒体引擎自动探测。
