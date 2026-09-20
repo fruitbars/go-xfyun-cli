@@ -23,7 +23,7 @@ npx -y @fruitbars/xfyun-ai-mcp@latest --version
 
 这条命令不会全局安装软件；`npx` 下载并缓存 npm 包，`--version` 只做启动验收。主 npm 包会自动选择 Windows、macOS、Linux 的 x64/arm64 原生包，不在运行时从 GitHub 下载二进制。
 
-下面的快速注册命令使用 `@latest`，适合希望自动获得新版本的个人用户。团队或生产环境可改为固定版本（当前为 `@0.4.2`），避免未经验证的自动升级。
+下面的快速注册命令使用 `@latest`，适合希望自动获得新版本的个人用户。团队或生产环境可改为固定版本（当前为 `@0.5.0`），避免未经验证的自动升级。
 
 用户不需要克隆仓库、安装 Go 或另行安装 FFmpeg。把 MCP 注册到 Agent 宿主后，只需配置同一个讯飞应用的 `APPID`、`APIKey`、`APISecret`，即可直接使用 OCR、TTS、RTASR 和 IFASR。
 
@@ -208,7 +208,7 @@ IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先
     "xfyun-ai": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.4.2"]
+      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.5.0"]
     }
   }
 }

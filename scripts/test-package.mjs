@@ -44,7 +44,7 @@ try {
             send({ jsonrpc: "2.0", method: "notifications/initialized" });
             send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
           } else if (response.id === 2) {
-            assert.deepEqual(response.result.tools.map((tool) => tool.name).sort(), ["xfyun_ifasr_result", "xfyun_ifasr_submit", "xfyun_ocr", "xfyun_rtasr", "xfyun_tts"]);
+            assert.deepEqual(response.result.tools.map((tool) => tool.name).sort(), ["xfyun_ifasr_result", "xfyun_ifasr_submit", "xfyun_media", "xfyun_ocr", "xfyun_rtasr", "xfyun_tts"]);
             verified = true;
             child.stdin.end();
           }
