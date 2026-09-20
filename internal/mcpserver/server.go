@@ -549,7 +549,7 @@ type IFASRSubmitInput struct {
 	Language            string            `json:"language,omitempty" jsonschema:"LLM: autodialect or autominor (default autodialect); standard: cn, en, ja, and other enabled languages (default cn)."`
 	DurationMS          int64             `json:"duration_ms,omitempty" jsonschema:"Known duration in milliseconds. Zero probes local files automatically and disables duration validation for audio_url."`
 	Domain              string            `json:"domain,omitempty" jsonschema:"Domain optimization: court, finance, medical, tech, sport, edu, isp, gov, game, ecom, mil, com, life, ent, culture, or car."`
-	TrackMode           int               `json:"track_mode,omitempty" jsonschema:"Channel mode: 1 mixed or 2 stereo tracks. track_mode=2 is incompatible with role_type and language_analysis."`
+	TrackMode           int               `json:"track_mode,omitempty" jsonschema:"Channel mode: omit for automatic local detection (mono omits trackMode; stereo selects 2), 1 mixed, or 2 stereo tracks. Explicit values win; 2 is incompatible with role_type and language_analysis."`
 	RoleType            int               `json:"role_type,omitempty" jsonschema:"Speaker separation: 0 off, 1 generic, 3 voiceprint."`
 	RoleNum             int               `json:"role_num,omitempty" jsonschema:"Expected speaker count from 0 to 10."`
 	FeatureIDs          string            `json:"feature_ids,omitempty" jsonschema:"Comma-separated registered voiceprint IDs; role_type=3 only; maximum 64."`

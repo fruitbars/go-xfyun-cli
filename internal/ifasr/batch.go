@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/fruitbars/go-xfyun-cli/internal/media"
 )
 
 const (
@@ -48,6 +50,13 @@ type audioPart struct {
 // TranscribeFile transparently divides over-limit audio into valid media files,
 // submits every part, and combines completed transcripts in source order.
 func (c *Client) TranscribeFile(ctx context.Context, inputPath string, opts Options) (BatchResult, error) {
+	if opts.TrackMode == 0 && opts.RoleType == 0 && !opts.Analysis {
+		// A stereo local recording benefits from channel separation. Failure to
+		// probe is intentionally non-fatal; the service default remains safe.
+		if info, probeErr := media.Probe(ctx, inputPath); probeErr == nil {
+			opts = applyAutoTrackMode(opts, info.Channels)
+		}
+	}
 	parts, split, cleanup, err := prepareAudioParts(ctx, inputPath, opts.DurationMS)
 	if err != nil {
 		return BatchResult{}, err
@@ -123,6 +132,13 @@ func (c *Client) TranscribeFile(ctx context.Context, inputPath string, opts Opti
 	batch.Speakers = speakers
 	batch.Utterances = utterances
 	return batch, nil
+}
+
+func applyAutoTrackMode(opts Options, channels int) Options {
+	if opts.TrackMode == 0 && opts.RoleType == 0 && !opts.Analysis && channels >= 2 {
+		opts.TrackMode = 2
+	}
+	return opts
 }
 
 func mergeSpeakerTranscripts(current, next []SpeakerTranscript) []SpeakerTranscript {

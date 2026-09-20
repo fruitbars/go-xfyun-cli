@@ -25,6 +25,21 @@ func TestNeedsSplitAtEitherLimit(t *testing.T) {
 	}
 }
 
+func TestApplyAutoTrackMode(t *testing.T) {
+	if got := applyAutoTrackMode(Options{}, 1); got.TrackMode != 0 {
+		t.Fatalf("mono track mode = %d, want omitted", got.TrackMode)
+	}
+	if got := applyAutoTrackMode(Options{}, 2); got.TrackMode != 2 {
+		t.Fatalf("stereo track mode = %d, want 2", got.TrackMode)
+	}
+	if got := applyAutoTrackMode(Options{TrackMode: 1}, 2); got.TrackMode != 1 {
+		t.Fatalf("explicit track mode = %d, want 1", got.TrackMode)
+	}
+	if got := applyAutoTrackMode(Options{RoleType: 1}, 2); got.TrackMode != 0 {
+		t.Fatalf("speaker separation track mode = %d, want omitted", got.TrackMode)
+	}
+}
+
 func TestSegmentDurationAccountsForSizeAndDuration(t *testing.T) {
 	if got := segmentDuration(100, 10*60*60*1000); got != targetPartMS {
 		t.Fatalf("duration-limited segment = %d, want %d", got, targetPartMS)

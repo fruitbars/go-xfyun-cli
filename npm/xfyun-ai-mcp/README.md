@@ -32,6 +32,8 @@ Use IFASR for completed recordings. The default `variant="llm"` selects XFYun's 
 
 The submit tool accepts either local `input_path`, or `audio_url` together with `file_name` and `file_size_bytes` for XFYun `urlLink` mode. Oversized local files are split automatically; remote URLs must already fit one 5-hour/500-MiB order. `track_mode=2` enables stereo channel separation and cannot be combined with speaker-role separation or language analysis. Standard uses `appId + ts + signa` and maps `XFYUN_API_SECRET` to the service's `secretkey`; it does not use `signature_random`.
 
+For local audio, omitted `track_mode` is detected automatically: mono inputs omit `trackMode`, while stereo inputs use `trackMode=2` unless `role_type` or language analysis was requested. An explicit `track_mode` always wins. Remote URLs cannot be probed locally and use only an explicit value or the service default.
+
 Status `0` means created, `3` processing, `4` complete, and `-1` failed. Use `wait=false` for one status check when the MCP host has a short timeout. For batches, save each order reference immediately after submission so an interrupted run can resume without a duplicate upload.
 
 Hosts that provide an MCP progress token receive progress notifications for TTS segments and IFASR part submission/polling. Hosts without progress support should use the returned output paths, `wait=false`, and saved order references to resume long work safely.

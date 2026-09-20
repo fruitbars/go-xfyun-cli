@@ -12,6 +12,8 @@ For `variant="standard"`, the default language is `cn` and authentication uses `
 - Known duration: set `duration_ms`; zero lets the bundled media helper probe it automatically.
 - Domain optimization: `court`, `finance`, `medical`, `tech`, `sport`, `edu`, `isp`, `gov`, `game`, `ecom`, `mil`, `com`, `life`, `ent`, `culture`, or `car`.
 - Channel mode: `track_mode=1` mixed or `2` stereo tracks. Mode 2 cannot be combined with `role_type` or `language_analysis`. The service supports this parameter although the current public request table omits it.
+
+For local files, omit `track_mode` to enable automatic channel handling: mono omits `trackMode`, stereo selects `trackMode=2` unless `role_type` or `language_analysis` is requested. An explicit `track_mode` wins. URL inputs cannot be probed locally and keep the explicit value or service default.
 - Generic speaker separation: `role_type=1`; optionally set expected `role_num` from 0–10.
 - Voiceprint separation: `role_type=3` plus comma-separated `feature_ids` (maximum 64).
 - Completion webhook: `callback_url` must be an absolute HTTP(S) URL of at most 512 characters; the service calls it with GET.

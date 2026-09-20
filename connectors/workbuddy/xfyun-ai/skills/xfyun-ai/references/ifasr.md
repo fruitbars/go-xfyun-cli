@@ -10,6 +10,7 @@
 - 已知时长可填 `duration_ms`；0 表示由随包媒体引擎自动探测。
 - 领域：`court/finance/medical/tech/sport/edu/isp/gov/game/ecom/mil/com/life/ent/culture/car`。
 - 声道：`track_mode=1` 不分轨，`2` 双声道分轨；`2` 与 `role_type`、`language_analysis` 互斥。服务支持该参数，但当前公开请求参数表漏写。
+- 本地音频省略 `track_mode` 时自动探测声道：单声道省略 `trackMode`，双声道自动使用 `trackMode=2`；显式值优先。已请求 `role_type` 或语种分析时不自动切换，外链音频无法本地探测。
 - 通用角色分离：`role_type=1`，可填 0–10 的 `role_num`；声纹分离：`role_type=3` 并提供最多 64 个 `feature_ids`。
 - 完成回调：`callback_url` 必须是最长 512 字符的绝对 HTTP(S) URL，服务端以 GET 调用。
 - 顺滑文本：`smooth=true`（服务默认）；口语规整：`colloquial=true`。

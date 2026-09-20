@@ -361,7 +361,7 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	language := fs.String("language", "", "LLM: autodialect or autominor; standard: cn, en, ja, ... (default depends on variant)")
 	durationMS := fs.Int64("duration-ms", 0, "known audio duration in milliseconds; zero auto-detects")
 	domain := fs.String("domain", "", "domain optimization, such as finance or medical")
-	trackMode := fs.Int("track-mode", 0, "channel mode: 0 service default, 1 mixed, 2 stereo tracks")
+	trackMode := fs.Int("track-mode", 0, "channel mode: omitted auto-detects local mono/stereo, 1 mixed, 2 stereo tracks")
 	roleType := fs.Int("role-type", 0, "speaker separation: 0 off, 1 generic, 3 voiceprint")
 	roleNum := fs.Int("role-num", 0, "expected speaker count from 0 to 10")
 	featureIDs := fs.String("feature-ids", "", "comma-separated registered voiceprint IDs")

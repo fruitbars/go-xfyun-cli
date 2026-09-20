@@ -23,7 +23,7 @@ npx -y @fruitbars/xfyun-ai-mcp@latest --version
 
 这条命令不会全局安装软件；`npx` 下载并缓存 npm 包，`--version` 只做启动验收。主 npm 包会自动选择 Windows、macOS、Linux 的 x64/arm64 原生包，不在运行时从 GitHub 下载二进制。
 
-下面的快速注册命令使用 `@latest`，适合希望自动获得新版本的个人用户。团队或生产环境可改为固定版本（当前为 `@0.6.0`），避免未经验证的自动升级。
+下面的快速注册命令使用 `@latest`，适合希望自动获得新版本的个人用户。团队或生产环境可改为固定版本（当前为 `@0.6.1`），避免未经验证的自动升级。
 
 用户不需要克隆仓库、安装 Go 或另行安装 FFmpeg。把 MCP 注册到 Agent 宿主后，只需配置同一个讯飞应用的 `APPID`、`APIKey`、`APISecret`，即可直接使用 OCR、TTS、RTASR 和 IFASR。
 
@@ -184,6 +184,8 @@ xfyun ifasr --input stereo.wav --role-type 1 --role-num 2 --speaker-output-dir .
 
 开启发音人分离时，`--speaker-output-dir` 会额外生成 `speakers.txt` 和每个发音人的独立文本；加上 `--speaker-timestamps` 后按服务返回的 `bg/ed` 输出 `[HH:MM:SS.mmm --> HH:MM:SS.mmm]` 时间戳。原始完整文本仍照常输出。MCP 结果中的 `speakers[].segments` 提供同样的起止毫秒。
 
+本地音频未显式设置 `--track-mode` / `track_mode` 时，工具会先探测声道：单声道省略 `trackMode`，双声道自动发送 `trackMode=2` 并返回左右声道结果。用户显式设置 `1` 或 `2` 时优先使用用户值；已请求 `role_type` 或语种分析时不自动改成 `2`，避免触发讯飞的互斥规则。外链音频无法本地探测，只使用显式参数和服务默认值。
+
 录音转写默认展示交错的发音人对话稿。CLI 可用 `--transcript-format text|dialogue|timeline|speaker_grouped|srt|vtt` 切换；MCP 的 `xfyun_ifasr_result` 使用同名 `transcript_format`，并返回 `formatted_transcript` 与按原始顺序保存的 `utterances[]`。
 
 ### 音频媒体工具
@@ -219,7 +221,7 @@ IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先
     "xfyun-ai": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.6.0"]
+      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.6.1"]
     }
   }
 }
