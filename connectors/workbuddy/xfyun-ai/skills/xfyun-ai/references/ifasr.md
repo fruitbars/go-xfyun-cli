@@ -25,6 +25,8 @@ WorkBuddy 若提供 MCP progress token，会收到分片准备、提交和轮询
 
 结构化结果还提供 `speakers`：按 `st.rl` 聚合的处理后文本，每项包含 `speaker`、`transcript`，以及可用时的 `segments[{start_ms,end_ms,transcript}]`；`track_mode=2` 时还包含 `track=L/R`。用户要求分别返回发音人时直接使用 `speakers`，完整时序文本仍在 `transcript`。CLI 后备模式可用 `--speaker-output-dir` 写出汇总和逐发音人文本，`--speaker-timestamps` 加入时间戳。
 
+默认展示为交错的发音人对话稿。结果查询可传 `transcript_format=dialogue|text|timeline|speaker_grouped|srt|vtt`；`utterances` 保留按讯飞原始顺序排列的发音人、声道、文本和时间轴。
+
 服务可能把 `json_1best` 返回为 JSON 字符串或直接嵌入的对象，客户端会兼容两种形式。批量处理时，每次提交成功后立即持久化任务标识，以便中断后续跑而不重复上传和计费。
 
 ## 排障

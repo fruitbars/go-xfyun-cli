@@ -35,6 +35,8 @@ When smoothing or colloquial processing is enabled, `transcript` is the processe
 
 Structured results also expose `speakers`: processed text grouped by `st.rl`, with `speaker`, `transcript`, optional timestamped `segments` (`start_ms`, `end_ms`, `transcript`), and (for `track_mode=2`) `track` set to `L` or `R`. Use `speakers` directly when the user asks for separate speaker transcripts; `transcript` remains the complete time-ordered text. The CLI can write `speakers.txt` and per-speaker text files with `--speaker-output-dir`; add `--speaker-timestamps` for formatted timestamps.
 
+The default presentation is an interleaved dialogue. Use `transcript_format` / `--transcript-format` with `dialogue` (default), `text`, `timeline`, `speaker_grouped`, `srt`, or `vtt`. `utterances` preserves the original lattice order and is the source for all formatted views.
+
 Use `xfyun_media` for local audio preparation: `operation=info` reports sample rate, channels, codec, bitrate, and duration; `operation=convert` supports mono/stereo, sample-rate, and bitrate conversion.
 
 The service may encode `json_1best` as either a JSON string or an embedded object; the client accepts both. For batches, persist each order reference immediately after submission so an interrupted run can resume without uploading and charging again.

@@ -30,10 +30,13 @@ type BatchPart struct {
 }
 
 type BatchResult struct {
-	Split      bool                `json:"split"`
-	Parts      []BatchPart         `json:"parts"`
-	Transcript string              `json:"transcript,omitempty"`
-	Speakers   []SpeakerTranscript `json:"speakers,omitempty"`
+	Split               bool                `json:"split"`
+	Parts               []BatchPart         `json:"parts"`
+	Transcript          string              `json:"transcript,omitempty"`
+	FormattedTranscript string              `json:"formatted_transcript,omitempty"`
+	TranscriptFormat    string              `json:"transcript_format,omitempty"`
+	Speakers            []SpeakerTranscript `json:"speakers,omitempty"`
+	Utterances          []Utterance         `json:"utterances,omitempty"`
 }
 
 type audioPart struct {
@@ -91,6 +94,8 @@ func (c *Client) TranscribeFile(ctx context.Context, inputPath string, opts Opti
 
 	transcripts := make([]string, 0, len(batch.Parts))
 	var speakers []SpeakerTranscript
+	var utterances []Utterance
+	var offsetMS int64
 	for index := range batch.Parts {
 		waitOptions := opts
 		if opts.Progress != nil {
@@ -107,9 +112,16 @@ func (c *Client) TranscribeFile(ctx context.Context, inputPath string, opts Opti
 			transcripts = append(transcripts, result.Transcript)
 		}
 		speakers = mergeSpeakerTranscripts(speakers, result.Speakers)
+		for _, utterance := range result.Utterances {
+			utterance.StartMS += offsetMS
+			utterance.EndMS += offsetMS
+			utterances = append(utterances, utterance)
+		}
+		offsetMS += batch.Parts[index].DurationMS
 	}
 	batch.Transcript = strings.Join(transcripts, "\n")
 	batch.Speakers = speakers
+	batch.Utterances = utterances
 	return batch, nil
 }
 

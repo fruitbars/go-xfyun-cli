@@ -390,6 +390,7 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	speakerOutputDir := fs.String("speaker-output-dir", "", "write speakers.txt and one text file per speaker")
 	speakerTimestamps := fs.Bool("speaker-timestamps", false, "include [start --> end] timestamps in speaker text files")
 	speakerForce := fs.Bool("speaker-force", false, "allow replacement of existing speaker text files")
+	transcriptFormat := fs.String("transcript-format", "dialogue", "dialogue, text, timeline, speaker_grouped, srt, or vtt")
 	var extra keyValueFlags
 	fs.Var(&extra, "param", "extra upload query parameter key=value (repeatable)")
 	fs.Usage = func() {
@@ -474,6 +475,23 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	if err != nil {
 		return err
 	}
+	if *inputPath != "" {
+		batch.TranscriptFormat = *transcriptFormat
+		batch.FormattedTranscript, err = ifasr.FormatTranscript(*transcriptFormat, batch.Transcript, batch.Utterances, batch.Speakers)
+		if err != nil {
+			return err
+		}
+		if !batch.Split && len(batch.Parts) == 1 {
+			result.FormattedTranscript = batch.FormattedTranscript
+			result.TranscriptFormat = batch.TranscriptFormat
+		}
+	} else if result.Status == 4 {
+		result.TranscriptFormat = *transcriptFormat
+		result.FormattedTranscript, err = ifasr.FormatTranscript(*transcriptFormat, result.Transcript, result.Utterances, result.Speakers)
+		if err != nil {
+			return err
+		}
+	}
 	if *inputPath != "" && batch.Split {
 		if *speakerOutputDir != "" && len(batch.Speakers) > 0 {
 			if err := writeSpeakerFiles(*speakerOutputDir, "", batch.Speakers, *speakerTimestamps, *speakerForce); err != nil {
@@ -483,7 +501,7 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 		if *raw || *noWait {
 			return writeJSON(stdout, batch)
 		}
-		fmt.Fprintln(stdout, batch.Transcript)
+		fmt.Fprintln(stdout, batch.FormattedTranscript)
 		return nil
 	}
 	if *speakerOutputDir != "" && len(result.Speakers) > 0 {
@@ -494,7 +512,7 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	if *raw || *noWait {
 		return writeJSON(stdout, result)
 	}
-	fmt.Fprintln(stdout, result.Transcript)
+	fmt.Fprintln(stdout, result.FormattedTranscript)
 	return nil
 }
 

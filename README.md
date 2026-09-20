@@ -184,6 +184,8 @@ xfyun ifasr --input stereo.wav --role-type 1 --role-num 2 --speaker-output-dir .
 
 开启发音人分离时，`--speaker-output-dir` 会额外生成 `speakers.txt` 和每个发音人的独立文本；加上 `--speaker-timestamps` 后按服务返回的 `bg/ed` 输出 `[HH:MM:SS.mmm --> HH:MM:SS.mmm]` 时间戳。原始完整文本仍照常输出。MCP 结果中的 `speakers[].segments` 提供同样的起止毫秒。
 
+录音转写默认展示交错的发音人对话稿。CLI 可用 `--transcript-format text|dialogue|timeline|speaker_grouped|srt|vtt` 切换；MCP 的 `xfyun_ifasr_result` 使用同名 `transcript_format`，并返回 `formatted_transcript` 与按原始顺序保存的 `utterances[]`。
+
 ### 音频媒体工具
 
 ```bash

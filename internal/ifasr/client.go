@@ -117,13 +117,16 @@ var managedIFASRParameters = map[string]struct{}{
 }
 
 type Result struct {
-	OrderID            string              `json:"order_id"`
-	SignatureRand      string              `json:"signature_random,omitempty"`
-	Status             int                 `json:"status"`
-	Transcript         string              `json:"transcript,omitempty"`
-	OriginalTranscript string              `json:"original_transcript,omitempty"`
-	Speakers           []SpeakerTranscript `json:"speakers,omitempty"`
-	Response           Response            `json:"response"`
+	OrderID             string              `json:"order_id"`
+	SignatureRand       string              `json:"signature_random,omitempty"`
+	Status              int                 `json:"status"`
+	Transcript          string              `json:"transcript,omitempty"`
+	OriginalTranscript  string              `json:"original_transcript,omitempty"`
+	FormattedTranscript string              `json:"formatted_transcript,omitempty"`
+	TranscriptFormat    string              `json:"transcript_format,omitempty"`
+	Speakers            []SpeakerTranscript `json:"speakers,omitempty"`
+	Utterances          []Utterance         `json:"utterances,omitempty"`
+	Response            Response            `json:"response"`
 }
 
 // SpeakerTranscript is the processed transcript grouped by the role ID in
@@ -141,6 +144,15 @@ type SpeakerSegment struct {
 	StartMS    int64  `json:"start_ms,omitempty"`
 	EndMS      int64  `json:"end_ms,omitempty"`
 	Transcript string `json:"transcript"`
+}
+
+// Utterance preserves the original lattice order for speaker-aware output.
+type Utterance struct {
+	Speaker string `json:"speaker,omitempty"`
+	Track   string `json:"track,omitempty"`
+	StartMS int64  `json:"start_ms,omitempty"`
+	EndMS   int64  `json:"end_ms,omitempty"`
+	Text    string `json:"text"`
 }
 
 type Client struct {
@@ -698,6 +710,10 @@ func (c *Client) Wait(ctx context.Context, orderID, signatureRandom string, opts
 			if err != nil {
 				return result, err
 			}
+			result.Utterances, err = ExtractUtterances(response.Content.OrderResult)
+			if err != nil {
+				return result, err
+			}
 			if opts.Progress != nil {
 				opts.Progress(1, 1, fmt.Sprintf("IFASR order %s completed", orderID))
 			}
@@ -883,6 +899,46 @@ func ExtractSpeakerTranscripts(orderResult string) ([]SpeakerTranscript, error) 
 		}
 	}
 	return speakers, nil
+}
+
+// ExtractUtterances returns speaker-labelled lattice items in service order.
+func ExtractUtterances(orderResult string) ([]Utterance, error) {
+	if orderResult == "" {
+		return nil, nil
+	}
+	var outer struct {
+		Lattice []latticeItem `json:"lattice"`
+		Label   struct {
+			RLTrack []struct {
+				RL    json.RawMessage `json:"rl"`
+				Track string          `json:"track"`
+			} `json:"rl_track"`
+		} `json:"label"`
+	}
+	if err := json.Unmarshal([]byte(orderResult), &outer); err != nil {
+		return nil, fmt.Errorf("decode IFASR order result: %w", err)
+	}
+	tracks := make(map[string]string, len(outer.Label.RLTrack))
+	for _, item := range outer.Label.RLTrack {
+		role := stringValue(item.RL)
+		if role != "" && item.Track != "" {
+			tracks[role] = item.Track
+		}
+	}
+	utterances := make([]Utterance, 0, len(outer.Lattice))
+	for _, item := range outer.Lattice {
+		parsed, err := parseLatticeItem(item)
+		if err != nil {
+			return nil, err
+		}
+		if parsed.Text == "" {
+			continue
+		}
+		utterances = append(utterances, Utterance{
+			Speaker: parsed.Role, Track: tracks[parsed.Role], StartMS: parsed.StartMS, EndMS: parsed.EndMS, Text: parsed.Text,
+		})
+	}
+	return utterances, nil
 }
 
 type latticeItem struct {

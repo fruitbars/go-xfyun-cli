@@ -662,48 +662,62 @@ type IFASROrderRef struct {
 }
 
 type IFASRResultInput struct {
-	Variant         string          `json:"variant,omitempty" jsonschema:"Recording transcription engine: llm (default) or standard. Must match the submit variant."`
-	OrderID         string          `json:"order_id,omitempty" jsonschema:"Order ID returned for a single-part submission."`
-	SignatureRandom string          `json:"signature_random,omitempty" jsonschema:"Signature random returned for a single-part submission."`
-	Orders          []IFASROrderRef `json:"orders,omitempty" jsonschema:"Ordered references returned in parts for an automatically split submission."`
-	ResultType      string          `json:"result_type,omitempty" jsonschema:"LLM: transfer, analysis, or transfer,analysis; standard: transfer, translate, or predict. Default: transfer."`
-	Wait            bool            `json:"wait,omitempty" jsonschema:"Wait and poll until the order finishes."`
-	PollSeconds     int             `json:"poll_seconds,omitempty" jsonschema:"Polling interval in seconds. Default: 2."`
-	MaxWaitSeconds  int             `json:"max_wait_seconds,omitempty" jsonschema:"Maximum wait in seconds. Default: 1800."`
-	IncludeRaw      bool            `json:"include_raw,omitempty" jsonschema:"Include the service orderResult JSON string; use for language analysis or fields not represented by transcript."`
+	Variant          string          `json:"variant,omitempty" jsonschema:"Recording transcription engine: llm (default) or standard. Must match the submit variant."`
+	OrderID          string          `json:"order_id,omitempty" jsonschema:"Order ID returned for a single-part submission."`
+	SignatureRandom  string          `json:"signature_random,omitempty" jsonschema:"Signature random returned for a single-part submission."`
+	Orders           []IFASROrderRef `json:"orders,omitempty" jsonschema:"Ordered references returned in parts for an automatically split submission."`
+	ResultType       string          `json:"result_type,omitempty" jsonschema:"LLM: transfer, analysis, or transfer,analysis; standard: transfer, translate, or predict. Default: transfer."`
+	Wait             bool            `json:"wait,omitempty" jsonschema:"Wait and poll until the order finishes."`
+	PollSeconds      int             `json:"poll_seconds,omitempty" jsonschema:"Polling interval in seconds. Default: 2."`
+	MaxWaitSeconds   int             `json:"max_wait_seconds,omitempty" jsonschema:"Maximum wait in seconds. Default: 1800."`
+	IncludeRaw       bool            `json:"include_raw,omitempty" jsonschema:"Include the service orderResult JSON string; use for language analysis or fields not represented by transcript."`
+	TranscriptFormat string          `json:"transcript_format,omitempty" jsonschema:"Presentation: dialogue (default), text, timeline, speaker_grouped, srt, or vtt."`
 }
 
 type IFASRResultOutput struct {
-	OrderID            string               `json:"order_id,omitempty"`
-	Status             int                  `json:"status"`
-	FailType           int                  `json:"fail_type,omitempty"`
-	Transcript         string               `json:"transcript,omitempty"`
-	OriginalTranscript string               `json:"original_transcript,omitempty"`
-	Speakers           []IFASRSpeakerResult `json:"speakers,omitempty"`
-	RawResult          string               `json:"raw_result,omitempty"`
-	RawResponse        string               `json:"raw_response,omitempty"`
-	Language           string               `json:"language,omitempty"`
-	OriginalDurationMS int64                `json:"original_duration_ms,omitempty"`
-	ExpireTime         int64                `json:"expire_time,omitempty"`
-	TaskEstimateTime   int64                `json:"task_estimate_time_ms,omitempty"`
-	Split              bool                 `json:"split"`
-	Parts              []IFASRPartResult    `json:"parts,omitempty"`
+	OrderID             string                 `json:"order_id,omitempty"`
+	Status              int                    `json:"status"`
+	FailType            int                    `json:"fail_type,omitempty"`
+	Transcript          string                 `json:"transcript,omitempty"`
+	OriginalTranscript  string                 `json:"original_transcript,omitempty"`
+	FormattedTranscript string                 `json:"formatted_transcript,omitempty"`
+	TranscriptFormat    string                 `json:"transcript_format"`
+	Speakers            []IFASRSpeakerResult   `json:"speakers,omitempty"`
+	Utterances          []IFASRUtteranceResult `json:"utterances,omitempty"`
+	RawResult           string                 `json:"raw_result,omitempty"`
+	RawResponse         string                 `json:"raw_response,omitempty"`
+	Language            string                 `json:"language,omitempty"`
+	OriginalDurationMS  int64                  `json:"original_duration_ms,omitempty"`
+	ExpireTime          int64                  `json:"expire_time,omitempty"`
+	TaskEstimateTime    int64                  `json:"task_estimate_time_ms,omitempty"`
+	Split               bool                   `json:"split"`
+	Parts               []IFASRPartResult      `json:"parts,omitempty"`
 }
 
 type IFASRPartResult struct {
-	Index              int                  `json:"index"`
-	OrderID            string               `json:"order_id"`
-	Status             int                  `json:"status"`
-	FailType           int                  `json:"fail_type,omitempty"`
-	Transcript         string               `json:"transcript,omitempty"`
-	OriginalTranscript string               `json:"original_transcript,omitempty"`
-	Speakers           []IFASRSpeakerResult `json:"speakers,omitempty"`
-	RawResult          string               `json:"raw_result,omitempty"`
-	RawResponse        string               `json:"raw_response,omitempty"`
-	Language           string               `json:"language,omitempty"`
-	OriginalDurationMS int64                `json:"original_duration_ms,omitempty"`
-	ExpireTime         int64                `json:"expire_time,omitempty"`
-	TaskEstimateTime   int64                `json:"task_estimate_time_ms,omitempty"`
+	Index               int                    `json:"index"`
+	OrderID             string                 `json:"order_id"`
+	Status              int                    `json:"status"`
+	FailType            int                    `json:"fail_type,omitempty"`
+	Transcript          string                 `json:"transcript,omitempty"`
+	OriginalTranscript  string                 `json:"original_transcript,omitempty"`
+	FormattedTranscript string                 `json:"formatted_transcript,omitempty"`
+	Utterances          []IFASRUtteranceResult `json:"utterances,omitempty"`
+	Speakers            []IFASRSpeakerResult   `json:"speakers,omitempty"`
+	RawResult           string                 `json:"raw_result,omitempty"`
+	RawResponse         string                 `json:"raw_response,omitempty"`
+	Language            string                 `json:"language,omitempty"`
+	OriginalDurationMS  int64                  `json:"original_duration_ms,omitempty"`
+	ExpireTime          int64                  `json:"expire_time,omitempty"`
+	TaskEstimateTime    int64                  `json:"task_estimate_time_ms,omitempty"`
+}
+
+type IFASRUtteranceResult struct {
+	Speaker string `json:"speaker,omitempty"`
+	Track   string `json:"track,omitempty"`
+	StartMS int64  `json:"start_ms,omitempty"`
+	EndMS   int64  `json:"end_ms,omitempty"`
+	Text    string `json:"text"`
 }
 
 type IFASRSpeakerResult struct {
@@ -752,14 +766,19 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 		if input.MaxWaitSeconds <= 0 {
 			input.MaxWaitSeconds = 1800
 		}
+		if input.TranscriptFormat == "" {
+			input.TranscriptFormat = "dialogue"
+		}
 		client := ifasr.Client{Credentials: service.credentials, Variant: variant}
 		orders := input.Orders
 		if hasSingle {
 			orders = []IFASROrderRef{{OrderID: input.OrderID, SignatureRandom: input.SignatureRandom}}
 		}
-		output := IFASRResultOutput{Split: len(orders) > 1, Status: 4}
+		output := IFASRResultOutput{Split: len(orders) > 1, Status: 4, TranscriptFormat: input.TranscriptFormat}
 		var transcripts, originals []string
 		var speakers []IFASRSpeakerResult
+		var utterances []IFASRUtteranceResult
+		var utteranceOffset int64
 		for index, order := range orders {
 			if order.OrderID == "" || (variant == ifasr.VariantLLM && order.SignatureRandom == "") {
 				return nil, IFASRResultOutput{}, fmt.Errorf("orders[%d] requires order_id%s", index, func() string {
@@ -786,17 +805,30 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 				originals = append(originals, part.OriginalTranscript)
 			}
 			speakers = mergeIFASRSpeakers(speakers, part.Speakers)
+			for _, utterance := range part.Utterances {
+				utterance.StartMS += utteranceOffset
+				utterance.EndMS += utteranceOffset
+				utterances = append(utterances, utterance)
+			}
+			utteranceOffset += part.OriginalDurationMS
 			output.OriginalDurationMS += part.OriginalDurationMS
 		}
 		output.Transcript = strings.Join(transcripts, "\n")
 		output.OriginalTranscript = strings.Join(originals, "\n")
 		output.Speakers = speakers
+		output.Utterances = utterances
+		formatted, err := ifasr.FormatTranscript(input.TranscriptFormat, output.Transcript, fromMCPUtterances(utterances), fromMCPSpeakers(speakers))
+		if err != nil {
+			return nil, IFASRResultOutput{}, err
+		}
+		output.FormattedTranscript = formatted
 		if len(output.Parts) == 1 {
 			part := output.Parts[0]
 			output.OrderID, output.FailType, output.Language = part.OrderID, part.FailType, part.Language
 			output.Speakers = part.Speakers
 			output.RawResult, output.RawResponse = part.RawResult, part.RawResponse
 			output.ExpireTime, output.TaskEstimateTime = part.ExpireTime, part.TaskEstimateTime
+			output.FormattedTranscript = part.FormattedTranscript
 			output.Parts = nil
 		}
 		return nil, output, nil
@@ -849,16 +881,26 @@ func queryIFASRPart(ctx context.Context, req *mcp.CallToolRequest, client *ifasr
 			if err != nil {
 				return IFASRPartResult{}, err
 			}
+			result.Utterances, err = ifasr.ExtractUtterances(response.Content.OrderResult)
+			if err != nil {
+				return IFASRPartResult{}, err
+			}
 		}
 	}
 	info := result.Response.Content.OrderInfo
 	part := IFASRPartResult{
 		OrderID: order.OrderID, Status: info.Status, FailType: info.FailType,
 		Transcript: result.Transcript, OriginalTranscript: result.OriginalTranscript,
-		Speakers: toMCPIFASRSpeakers(result.Speakers),
-		Language: info.Language, OriginalDurationMS: info.OriginalDuration,
+		Utterances: toMCPIFASRUtterances(result.Utterances),
+		Speakers:   toMCPIFASRSpeakers(result.Speakers),
+		Language:   info.Language, OriginalDurationMS: info.OriginalDuration,
 		ExpireTime: info.ExpireTime, TaskEstimateTime: result.Response.Content.TaskEstimateTime,
 	}
+	formatted, formatErr := ifasr.FormatTranscript(input.TranscriptFormat, part.Transcript, result.Utterances, result.Speakers)
+	if formatErr != nil {
+		return IFASRPartResult{}, formatErr
+	}
+	part.FormattedTranscript = formatted
 	if input.IncludeRaw {
 		part.RawResult = result.Response.Content.OrderResult
 		encoded, err := json.Marshal(result.Response)
@@ -879,6 +921,43 @@ func toMCPIFASRSpeakers(speakers []ifasr.SpeakerTranscript) []IFASRSpeakerResult
 		converted := IFASRSpeakerResult{Speaker: speaker.Speaker, Track: speaker.Track, Transcript: speaker.Transcript}
 		for _, segment := range speaker.Segments {
 			converted.Segments = append(converted.Segments, IFASRSpeakerSegment{StartMS: segment.StartMS, EndMS: segment.EndMS, Transcript: segment.Transcript})
+		}
+		result = append(result, converted)
+	}
+	return result
+}
+
+func toMCPIFASRUtterances(utterances []ifasr.Utterance) []IFASRUtteranceResult {
+	if len(utterances) == 0 {
+		return nil
+	}
+	result := make([]IFASRUtteranceResult, 0, len(utterances))
+	for _, utterance := range utterances {
+		result = append(result, IFASRUtteranceResult{Speaker: utterance.Speaker, Track: utterance.Track, StartMS: utterance.StartMS, EndMS: utterance.EndMS, Text: utterance.Text})
+	}
+	return result
+}
+
+func fromMCPUtterances(utterances []IFASRUtteranceResult) []ifasr.Utterance {
+	if len(utterances) == 0 {
+		return nil
+	}
+	result := make([]ifasr.Utterance, 0, len(utterances))
+	for _, utterance := range utterances {
+		result = append(result, ifasr.Utterance{Speaker: utterance.Speaker, Track: utterance.Track, StartMS: utterance.StartMS, EndMS: utterance.EndMS, Text: utterance.Text})
+	}
+	return result
+}
+
+func fromMCPSpeakers(speakers []IFASRSpeakerResult) []ifasr.SpeakerTranscript {
+	if len(speakers) == 0 {
+		return nil
+	}
+	result := make([]ifasr.SpeakerTranscript, 0, len(speakers))
+	for _, speaker := range speakers {
+		converted := ifasr.SpeakerTranscript{Speaker: speaker.Speaker, Track: speaker.Track, Transcript: speaker.Transcript}
+		for _, segment := range speaker.Segments {
+			converted.Segments = append(converted.Segments, ifasr.SpeakerSegment{StartMS: segment.StartMS, EndMS: segment.EndMS, Transcript: segment.Transcript})
 		}
 		result = append(result, converted)
 	}
