@@ -2,6 +2,8 @@
 
 Use `xfyun_ifasr_submit` for completed recordings. The default `variant="llm"` selects Spark recording transcription; `variant="standard"` selects the standard `/v2/api/upload` and `/v2/api/getResult` service. LLM supports `mp3`, `wav`, `pcm`, `opus`, `flac`, `ogg`, and `speex`; standard additionally accepts the official `aac`, `m4a`, `amr`, `ac3`, `ape`, `m4r`, `mp4`, `acc`, and `wma` formats. Each service order is limited to 5 hours and 500 MiB; the tool automatically probes and losslessly splits larger local input. Preserve `order_id` and `signature_random` for an LLM submission; standard needs only `order_id`. For a split submission, pass the returned `parts` references to `xfyun_ifasr_result` as `orders`; it queries every order and merges transcripts in source order. For `urlLink`, provide `audio_url`, `file_name`, and `file_size_bytes`; remote inputs cannot be split locally.
 
+Ordinary use does not require translation, quality inspection, system dictionaries, or other advanced entitlements. The default request is `transfer`; these optional fields are omitted unless explicitly supplied. Core flows cover automatic splitting, asynchronous polling, speaker separation, stereo tracks, timestamps, and per-speaker transcripts.
+
 ## Submission mapping
 
 For `variant="standard"`, the default language is `cn` and authentication uses `appId + ts + signa`, where `signa` is `Base64(HMAC-SHA1(MD5(appId + ts), XFYUN_API_SECRET))`. Standard results are queried with a fresh timestamp and do not use `signature_random`. Standard-only fields include `hot_word`, `sys_dicts`, `candidate`, `standard_wav`, `language_type`, `translation_language`, `translation_mode`, `segment_max`, `segment_min`, `segment_weight`, and `vad_margin`.

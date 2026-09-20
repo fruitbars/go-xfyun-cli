@@ -176,6 +176,8 @@ xfyun ifasr --input stereo.wav --role-type 1 --role-num 2 --speaker-output-dir .
 
 标准版额外参数包括 `--hot-word`、`--sys-dicts`、`--candidate`、`--standard-wav`、`--language-type`、`--translation-language`、`--translation-mode`、`--segment-max`、`--segment-min`、`--segment-weight` 和 `--vad-margin`。标准版结果类型使用 `transfer`、`translate` 或 `predict`，其中翻译/质检需账号权限。
 
+核心转写不依赖翻译、质检、系统词典或其他高级权限。工具默认只请求普通 `transfer` 结果；上述参数均为显式可选项，不配置就不会发送，也不会影响普通转写、发音人分离、双声道分轨、时间戳和超限自动切片。
+
 大模型版普通提交后必须同时保存 `order_id` 与 `signature_random`；标准版只需保存 `order_id`。自动切片时保存返回的 `parts` 数组，并原样传给结果查询的 `orders`。状态 `0` 为已创建、`3` 为处理中、`4` 为完成、`-1` 为失败。本地 `fileStream` 支持超限自动切片；外链 `urlLink` 需要同时提供 URL、文件名和字节数，且必须保持在单任务限制内。
 
 两个接口的凭证字段映射、完整参数对照、MCP/CLI 流程、老 lfasr 兼容参数透传、批量续跑策略、结果字段和错误排查见 [IFASR 使用指南](docs/ifasr.md)。

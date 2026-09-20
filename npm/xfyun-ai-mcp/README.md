@@ -42,6 +42,8 @@ Use `xfyun_media` with `operation=info` to inspect sample rate, channels, codec,
 
 The large-model default language mode is `autodialect` (Chinese, English, and dialects); `autominor` enables multilingual recognition when that capability is intended. Standard defaults to `cn` and exposes standard-only controls such as `hot_word`, `sys_dicts`, `candidate`, `language_type`, translation, and segment limits. Domain values are validated against XFYun's complete list. Legacy lfasr parameters such as `eng_max_clusters` and `eng_min_clusters` are accepted through `extra` for engine compatibility and forwarded unchanged; new integrations should prefer the variant's documented first-class controls. The client accepts XFYun's observed `json_1best` variants whether the nested JSON is returned as a string or an object.
 
+These standard-only controls and advanced entitlements are optional. Ordinary transcription uses `transfer` and does not require translation, quality inspection, system dictionaries, or any of these fields unless an integration explicitly supplies them.
+
 Common setup errors:
 
 - Missing `XFYUN_*`: restart the MCP host after setting the three variables.
