@@ -234,7 +234,7 @@ node scripts/build-release.mjs
 node scripts/test-package.mjs
 ```
 
-产物位于 `dist/`，原生 npm 二进制写入各平台包的 `bin/`；这些生成文件已被 `.gitignore` 排除。平台包的 `prepack` 会拒绝缺失、空白或不可执行的二进制，构建脚本还会检查版本一致性和 npm 打包内容。安装包测试在临时目录离线安装当前平台包与启动器，并验证版本和五个 MCP 工具的发现，不调用讯飞接口。
+产物位于 `dist/`，原生 npm 二进制写入各平台包的 `bin/`；这些生成文件已被 `.gitignore` 排除。平台包的 `prepack` 会拒绝缺失、空白或不可执行的二进制，构建脚本还会检查版本一致性和 npm 打包内容。安装包测试在临时目录离线安装当前平台包与启动器，并验证版本和六个 MCP 工具的发现，不调用讯飞接口。
 
 发布顺序与手动命令见 [发布指南](docs/releasing.md)。npm 工作流只手动执行，必须选中与包版本一致的 tag；GitHub Release 构建不会自动发布 npm。先完成 npm 发布和安装验收，再提交 WorkBuddy 连接器。
 
