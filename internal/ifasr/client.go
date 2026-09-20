@@ -81,14 +81,6 @@ var supportedDomains = map[string]struct{}{
 	"life": {}, "ent": {}, "culture": {}, "car": {},
 }
 
-var legacyLFASRParameters = map[string]string{
-	"eng_max_clusters": "use roleNum",
-	"eng_min_clusters": "use roleNum",
-	"eng_dtd_thre":     "no Ifasr_llm equivalent",
-	"eng_control_spk":  "use roleType and roleNum",
-	"eng_combine_max":  "no Ifasr_llm equivalent",
-}
-
 var managedIFASRParameters = map[string]struct{}{
 	"appId": {}, "accessKeyId": {}, "dateTime": {}, "signatureRandom": {},
 	"fileSize": {}, "fileName": {}, "durationCheckDisable": {}, "duration": {},
@@ -369,9 +361,6 @@ func validateOptions(opts Options) error {
 		return fmt.Errorf("IFASR result_type must be transfer, analysis, or transfer,analysis")
 	}
 	for key := range opts.Extra {
-		if replacement, legacy := legacyLFASRParameters[key]; legacy {
-			return fmt.Errorf("legacy lfasr parameter %s is unsupported by Ifasr_llm; %s", key, replacement)
-		}
 		if _, managed := managedIFASRParameters[key]; managed {
 			return fmt.Errorf("IFASR parameter %s has a first-class option and cannot be supplied through extra", key)
 		}

@@ -11,7 +11,7 @@
 - 顺滑文本：`smooth=true`（服务默认）；口语规整：`colloquial=true`。
 - 远场：`vad_mode=1`；近场：`2`。粤语简体：`cantonese_script=0`；繁体：`1`（默认）。
 - 语种分析：`language="autominor"` 且 `language_analysis=true`，要求应用已开通多语种能力，不能与 `track_mode=2` 同用。
-- `eng_max_clusters/eng_min_clusters/eng_dtd_thre/eng_control_spk/eng_combine_max` 属于老 lfasr，不能传给 Ifasr_llm；可迁移的角色人数能力改用 `role_type + role_num`。
+- `eng_max_clusters/eng_min_clusters/eng_dtd_thre/eng_control_spk/eng_combine_max` 是老 lfasr 兼容参数。迁移旧集成时可通过 `extra` 原样透传，由当前服务引擎决定是否生效；新集成优先使用 `role_type + role_num`。
 
 结果状态：`0` 已创建、`3` 处理中、`4` 完成、`-1` 失败。普通转写用 `result_type="transfer"`；语种分析用 `analysis`；两者都要用 `transfer,analysis`。分析结果需同时设置 `include_raw=true`。
 

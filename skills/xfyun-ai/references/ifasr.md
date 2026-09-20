@@ -15,7 +15,7 @@ Use `xfyun_ifasr_submit` for completed recordings. Supported file extensions are
 - Far-field/meeting-room audio: `vad_mode=1`; near-field/headset audio: `vad_mode=2`.
 - Cantonese simplified characters: `cantonese_script=0`; traditional: `1` (service default).
 - Spoken-language analysis: `language="autominor"` plus `language_analysis=true`; this requires the platform's multilingual entitlement and is unavailable with `track_mode=2`.
-- `eng_max_clusters`, `eng_min_clusters`, `eng_dtd_thre`, `eng_control_spk`, and `eng_combine_max` belong to legacy lfasr and must not be sent. Use `role_type` and `role_num` where applicable.
+- `eng_max_clusters`, `eng_min_clusters`, `eng_dtd_thre`, `eng_control_spk`, and `eng_combine_max` are legacy lfasr compatibility parameters. Pass them through `extra` when migrating an existing integration; the client signs and forwards them unchanged, while actual support and effect are determined by the current service engine. Prefer `role_type` and `role_num` for new integrations.
 
 ## Results
 

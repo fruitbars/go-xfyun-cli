@@ -176,6 +176,10 @@ func TestUploadParamsMapsEverySupportedBusinessOption(t *testing.T) {
 		CallbackURL: "https://callback.example/result", RoleType: 3, RoleNum: 2,
 		FeatureIDs: "voice-1,voice-2", Smooth: &smooth, Colloquial: &colloquial,
 		VADMode: 2, CantoneseScript: &cantonese, Analysis: true,
+		Extra: map[string]string{
+			"eng_max_clusters": "4", "eng_min_clusters": "1", "eng_dtd_thre": "2",
+			"eng_control_spk": "1", "eng_combine_max": "3000",
+		},
 	})
 	want := map[string]string{
 		"appId": "app", "accessKeyId": "key", "signatureRandom": "random",
@@ -189,6 +193,14 @@ func TestUploadParamsMapsEverySupportedBusinessOption(t *testing.T) {
 	for key, value := range want {
 		if got := params[key]; got != value {
 			t.Errorf("%s = %q, want %q", key, got, value)
+		}
+	}
+	for key, value := range map[string]string{
+		"eng_max_clusters": "4", "eng_min_clusters": "1", "eng_dtd_thre": "2",
+		"eng_control_spk": "1", "eng_combine_max": "3000",
+	} {
+		if got := params[key]; got != value {
+			t.Errorf("legacy %s = %q, want %q", key, got, value)
 		}
 	}
 	if params["dateTime"] == "" {
@@ -274,9 +286,9 @@ func TestValidateAdvancedOptions(t *testing.T) {
 	if err := validateOptions(invalid); err == nil {
 		t.Fatal("expected unsupported domain error")
 	}
-	invalid = Options{Extra: map[string]string{"eng_max_clusters": "2"}}
-	if err := validateOptions(invalid); err == nil || !strings.Contains(err.Error(), "use roleNum") {
-		t.Fatalf("expected legacy parameter migration error, got %v", err)
+	valid = Options{Extra: map[string]string{"eng_max_clusters": "2"}}
+	if err := validateOptions(valid); err != nil {
+		t.Fatalf("legacy parameter should be passed through: %v", err)
 	}
 	invalid = Options{RoleNum: 2}
 	if err := validateOptions(invalid); err == nil {
@@ -295,11 +307,12 @@ func TestValidateEveryDocumentedDomain(t *testing.T) {
 	}
 }
 
-func TestRejectsEveryLegacyLFASRParameter(t *testing.T) {
-	for parameter := range legacyLFASRParameters {
-		err := validateOptions(Options{Extra: map[string]string{parameter: "1"}})
-		if err == nil || !strings.Contains(err.Error(), "legacy lfasr parameter") {
-			t.Errorf("parameter %q error = %v", parameter, err)
+func TestAcceptsEveryLegacyLFASRParameterForEnginePassthrough(t *testing.T) {
+	for _, parameter := range []string{
+		"eng_max_clusters", "eng_min_clusters", "eng_dtd_thre", "eng_control_spk", "eng_combine_max",
+	} {
+		if err := validateOptions(Options{Extra: map[string]string{parameter: "1"}}); err != nil {
+			t.Errorf("parameter %q should pass through: %v", parameter, err)
 		}
 	}
 }

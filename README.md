@@ -171,7 +171,7 @@ xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd...' --no-wait
 
 普通提交后必须同时保存 `order_id` 与 `signature_random`；自动切片时保存返回的 `parts` 数组，并原样传给结果查询的 `orders`。状态 `0` 为已创建、`3` 为处理中、`4` 为完成、`-1` 为失败。本地 `fileStream` 支持超限自动切片；外链 `urlLink` 需要同时提供 URL、文件名和字节数，且必须保持在单任务限制内。
 
-凭证字段映射、MCP/CLI 完整流程、批量续跑策略、结果字段和 `000002`/`100020` 等错误排查见 [IFASR 使用指南](docs/ifasr.md)。
+凭证字段映射、MCP/CLI 完整流程、全部 Ifasr_llm 参数、老 lfasr 兼容参数透传、批量续跑策略、结果字段和 `000002`/`100020` 等错误排查见 [IFASR 使用指南](docs/ifasr.md)。
 
 ## MCP Server
 

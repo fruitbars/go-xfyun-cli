@@ -36,7 +36,7 @@ Status `0` means created, `3` processing, `4` complete, and `-1` failed. Use `wa
 
 Set `include_raw=true` when speaker IDs, word timing, stereo `label.rl_track`, or other detailed fields are needed. `raw_result` contains `orderResult`; `raw_response` preserves the complete service response, including reserved future result fields.
 
-The default language mode is `autodialect` (Chinese, English, and dialects); `autominor` enables multilingual recognition when that capability is intended. Domain values are validated against XFYun's complete list. Legacy lfasr clustering parameters such as `eng_max_clusters` and `eng_min_clusters` are rejected; use `role_type` and `role_num`. The client accepts XFYun's observed `json_1best` variants whether the nested JSON is returned as a string or an object.
+The default language mode is `autodialect` (Chinese, English, and dialects); `autominor` enables multilingual recognition when that capability is intended. Domain values are validated against XFYun's complete list. Legacy lfasr parameters such as `eng_max_clusters` and `eng_min_clusters` are accepted through `extra` for engine compatibility and forwarded unchanged; new integrations should prefer `role_type` and `role_num`. The client accepts XFYun's observed `json_1best` variants whether the nested JSON is returned as a string or an object.
 
 Common setup errors:
 

@@ -37,7 +37,7 @@ XFYUN_API_SECRET
 
 ## 上传参数完整对照
 
-下表覆盖当前 Ifasr_llm `/v2/upload` 的公开参数，并补充服务实际支持但当前公开页面漏写的 `trackMode`。所有已知正式字段均由一等参数或客户端协议层管理，不能通过 `extra/--param` 重复覆盖；`extra` 只留给未来新增且尚未建模的官方字段。
+下表覆盖当前 Ifasr_llm `/v2/upload` 的公开参数，并补充服务实际支持但当前公开页面漏写的 `trackMode`。已知正式字段由一等参数或客户端协议层管理，不能通过 `extra/--param` 重复覆盖；`extra` 可用于服务端兼容字段和未来新增字段。
 
 | 讯飞参数 | MCP / CLI | 必传 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -84,17 +84,17 @@ XFYUN_API_SECRET
 
 当服务返回两套结果时，MCP 的 `transcript` 是处理后文本，`original_transcript` 是原始文本。是否需要额外开通顺滑、口语规整、角色、声纹或多语种能力，以当前应用控制台权限为准。
 
-## 老 lfasr 参数迁移
+## 老 lfasr 参数兼容
 
-以下参数属于老 lfasr，不是 Ifasr_llm 参数。客户端会明确拒绝通过 `extra/--param` 传入，避免服务静默忽略后让用户误以为已经生效。
+以下参数最初属于老 lfasr，但部分 Ifasr_llm/底层引擎仍可能识别。客户端不会替用户拒绝，会通过 `extra/--param` 原样签名并透传；实际是否生效、取值范围和效果以当前讯飞服务端为准。新项目优先使用 Ifasr_llm 的 `roleType + roleNum`，但迁移旧系统时可以保留这些参数。
 
 | 老参数 | 老接口含义 | Ifasr_llm | 迁移方式 |
 | --- | --- | --- | --- |
-| `eng_max_clusters` | 说话人聚类最大人数 | 不支持 | 使用 `roleType + roleNum` |
-| `eng_min_clusters` | 说话人聚类最小人数 | 不支持 | 使用 `roleType + roleNum` |
-| `eng_dtd_thre` | 聚类相似度阈值 | 不支持 | 无业务侧等价参数，效果策略需联系讯飞 |
-| `eng_control_spk` | 启用老聚类人数约束 | 不支持 | 使用 `roleType + roleNum` |
-| `eng_combine_max` | 同角色片段合并最大间隔 | 不支持 | 无 Ifasr_llm 等价参数 |
+| `eng_max_clusters` | 说话人聚类最大人数 | 兼容透传 | 新项目优先 `roleType + roleNum` |
+| `eng_min_clusters` | 说话人聚类最小人数 | 兼容透传 | 新项目优先 `roleType + roleNum` |
+| `eng_dtd_thre` | 聚类相似度阈值 | 兼容透传 | 效果由当前引擎策略决定 |
+| `eng_control_spk` | 启用老聚类人数约束 | 兼容透传 | 新项目优先 `roleType + roleNum` |
+| `eng_combine_max` | 同角色片段合并最大间隔 | 兼容透传 | 效果由当前引擎策略决定 |
 
 `roleNum=0` 表示自动盲分，`1..10` 表示指定人数。`trackMode=2` 时按左右声道分轨，角色分离参数失效；客户端选择直接报互斥错误，避免参数被静默忽略。
 
@@ -314,6 +314,6 @@ xfyun ifasr \
 
 ## 实测基线
 
-项目已用 8 kHz、16 bit、单声道 WAV 批量验证：14 个文件、累计约 30 分钟，全部返回状态 `4`，无失败和空文本。自动化测试同时覆盖文件流生命周期、URL 外链参数与空请求体、`trackMode`、正式领域值、老参数拒绝、字符串/对象两种 `json_1best`、原始 `lattice2`、空片段以及损坏片段报错。
+项目已用 8 kHz、16 bit、单声道 WAV 批量验证：14 个文件、累计约 30 分钟，全部返回状态 `4`，无失败和空文本。自动化测试同时覆盖文件流生命周期、URL 外链参数与空请求体、`trackMode`、正式领域值、老参数兼容透传、字符串/对象两种 `json_1best`、原始 `lattice2`、空片段以及损坏片段报错。
 
 官方接口文档：[录音文件转写大模型](https://www.xfyun.cn/doc/spark/asr_llm/Ifasr_llm.html)
