@@ -202,6 +202,8 @@ xfyun ifasr --input stereo.wav --role-type 1 --role-num 2 --speaker-output-dir .
 
 录音转写默认展示交错的发音人对话稿。CLI 可用 `--transcript-format text|dialogue|timeline|speaker_grouped|srt|vtt` 切换；MCP 的 `xfyun_ifasr_result` 使用同名 `transcript_format`，并返回 `formatted_transcript` 与按原始顺序保存的 `utterances[]`。
 
+实时转写的完整参数和结果字段见 [RTASR 使用指南](docs/rtasr.md)。OCR、TTS、RTASR 的 `diagnostics` 与 IFASR 的 `requests[]` 使用规则见 [诊断信息与排障](docs/diagnostics.md)。
+
 ### 音频媒体工具
 
 ```bash
@@ -227,7 +229,7 @@ IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先
 
 长任务的进度通知也覆盖 TTS 分段和 IFASR 的分片提交/轮询；CLI 将进度写入 stderr，stdout 仍保持机器可读结果。MCP 宿主需要在调用中提供 progress token 才会收到通知；不支持通知的宿主仍可使用 OCR 的 NDJSON、IFASR 的 `wait=false` 和任务标识续跑策略。
 
-OCR、TTS、RTASR 和 IFASR 的 MCP 结构化结果都带有脱敏的 `diagnostics`（IFASR 另保留兼容的 `requests[]`），其中包括实际生效参数、SID/订单号、开始时间、耗时、分段或页数以及输出文件信息。诊断数据不会包含 APIKey、APISecret、签名或带查询令牌的 URL；排查问题时可直接把 `order_id`/`sid` 与 `diagnostics` 一起提供。
+OCR、TTS 和 RTASR 的 MCP 结构化结果带有脱敏的 `diagnostics`；IFASR 使用异步订单专用的 `requests[]`，并保留 `order_id`/`signature_random` 作为续查标识。诊断信息记录实际生效参数、SID/订单号、开始时间、耗时、分段或页数以及输出文件信息，不包含 APIKey、APISecret、签名或带查询令牌的 URL。完整字段和排障材料见 [诊断信息与排障](docs/diagnostics.md)。
 
 通用 stdio 配置：
 

@@ -122,7 +122,9 @@ skills/xfyun-ai/references/*.md
 
 连接器为多页 PDF 设置 30 分钟工具超时。PDF 会逐页渲染、压缩、OCR、写出 NDJSON 并释放页面；多页调用返回 `output_path`，不会把所有页面内容积压在 MCP 响应内存中。支持 progress token 时宿主可显示逐页进度。超长文档建议通过 `pages` 分批调用。
 
-四类云接口的 MCP 结果均包含脱敏 `diagnostics`。其中会记录实际参数、SID/订单号、耗时、分段或页数和输出路径；IFASR 同时提供 `requests[]` 以保持既有集成兼容。鉴权字段、签名和 URL 查询令牌永不进入诊断信息。
+OCR、TTS 和 RTASR 的 MCP 结果包含脱敏 `diagnostics`；IFASR 使用异步订单专用的 `requests[]`，并保留 `order_id`/`signature_random` 作为续查标识。它们记录实际参数、SID/订单号、耗时、分段或页数和输出路径，但不会包含鉴权字段、签名或 URL 查询令牌。详见 [诊断信息与排障](diagnostics.md)。
+
+实时转写参数和返回字段见 [RTASR 使用指南](rtasr.md)。
 
 ## 其他 Agent 产品
 

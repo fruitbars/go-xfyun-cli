@@ -57,6 +57,8 @@ For ordinary input, persist both returned fields:
 
 For automatically split input, preserve every `order_id` and `signature_random` in the returned `parts` array. Pass those references to `xfyun_ifasr_result` as `orders`; it merges completed transcripts in source order.
 
+For a restart-safe workflow, pass `task_file_path` during submit. The server writes a local mode-0600 continuation file containing all order references and request traces; pass the same path to `xfyun_ifasr_result` to resume all parts without copying `orders`. Existing task files are protected unless `task_file_force=true`.
+
 For `variant="standard"`, persist only `order_id`; the standard API signs each upload/query with `appId + ts + signa` and does not return or require `signature_random`. Its default language is `cn` and it supports standard-only fields such as `hot_word`, `sys_dicts`, `candidate`, `language_type`, translation, and segment controls.
 
 For submission, post-processing, speaker, and analysis options read [ifasr.md](ifasr.md).
@@ -89,3 +91,5 @@ xfyun media convert --input stereo.wav --output mono-16k.wav --channels 1 --samp
 ```
 
 Use `xfyun <command> --help` for advanced CLI options.
+
+The CLI diagnostic command is `xfyun doctor --json` (or `--strict` for CI). OCR, TTS, and RTASR MCP results expose redacted `diagnostics`; IFASR exposes asynchronous `requests[]` traces. See the repository's diagnostics guide for the complete field and redaction rules.

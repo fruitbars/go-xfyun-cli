@@ -23,3 +23,5 @@ XFYUN_API_SECRET
 连接成功后应出现六个工具：`xfyun_ocr`、`xfyun_tts`、`xfyun_rtasr`、`xfyun_ifasr_submit`、`xfyun_ifasr_result`、`xfyun_media`。本地文件路径必须对运行 WorkBuddy 与 MCP Server 的同一台机器可见；`xfyun_media` 可查询或转换本地音频的声道、采样率和码率。
 
 连接器工具超时设为 30 分钟，以允许多页 PDF 逐页 OCR。渲染、压缩、OCR、NDJSON 写出和释放均逐页执行；工具最终返回结果文件 `output_path`，支持时还会逐页报告 MCP progress。超长文档仍应通过 `pages` 分批处理，避免一次调用占用宿主过久。
+
+排障时保留 OCR、TTS、RTASR 返回的脱敏 `diagnostics`；IFASR 使用 `requests[]`、`order_id` 和 `signature_random` 追踪异步订单。IFASR 提交可设置 `task_file_path` 保存权限为 `0600` 的续跑文件，结果查询再次传入同一路径即可恢复全部分片；默认拒绝覆盖已有任务文件。完整字段和脱敏规则见仓库的诊断指南。

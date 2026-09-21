@@ -179,6 +179,10 @@ xfyun ocr --input page.png --result-format json,markdown,sed --raw
 
 运行 `xfyun ocr --help` 查看完整 CLI 参数。
 
+## 诊断信息
+
+MCP 结果带有脱敏的 `diagnostics[]`，记录实际生效的结果格式、版面选项、输入文件大小、SID、页数、耗时和输出路径。多页 NDJSON 的每行还包含对应页面的诊断快照。诊断信息不包含凭证、签名或带令牌的 URL；完整规则见 [诊断信息与排障](diagnostics.md)。
+
 ## 常见问题
 
 ### 提示缺少凭证

@@ -31,6 +31,7 @@ Prefer IFASR over RTASR for completed `mp3`, `wav`, `flac`, `ogg`, or multi-hour
 - Treat IFASR status `4` as complete, `-1` as failed, and `0` or `3` as unfinished.
 - When IFASR smoothing or colloquial processing is enabled, `transcript` is processed text and `original_transcript` is the retained original when the service returns `lattice2`. Request `include_raw=true` for language-analysis details.
 - For TTS, report the resolved output path, encoding, byte count, and SID. Do not ingest generated binary audio into conversation context.
+- For OCR, TTS, and RTASR, preserve and report the returned redacted `diagnostics` when troubleshooting. For IFASR, preserve `requests[]`, `order_id`, and continuation identifiers instead.
 - On an API error, include the service, error code, message, and SID when present. Do not retry authentication, quota, permission, or invalid-input errors automatically.
 
 Read [references/integration.md](references/integration.md) only when MCP setup, CLI fallback syntax, format limits, or advanced parameters are needed.
