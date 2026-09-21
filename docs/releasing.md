@@ -6,7 +6,7 @@
 2. 决定并添加许可证；当前不替项目选择许可证。
 3. 确认 npm 发布账号拥有 `@fruitbars` scope 权限，完成 `npm login`。
 4. 确认 GitHub 仓库地址与 `go.mod`、npm manifests 一致；若地址变化，需要同步更新。
-5. 保持 Go、七个 npm 包、optionalDependencies、连接器及配置示例的版本一致，当前 npm 版本为 `0.7.3`；WorkBuddy 连接器按单独审核版本管理。
+5. 保持 Go、七个 npm 包、optionalDependencies、连接器及配置示例的版本一致，当前 npm 版本为 `0.7.4`；WorkBuddy 连接器按单独审核版本管理。
 
 ## 本地验收
 
@@ -34,16 +34,16 @@ npm publish ./npm/platforms/win32-x64 --access public
 npm publish ./npm/xfyun-ai-mcp --access public
 ```
 
-npm 版本不能重复发布。部分成功时，先用 `npm view <包名>@0.7.3` 核实已发布的包，只继续尚未发布的包；不要直接重新运行完整发布流程。若发布内容错误，需要提升所有相关版本后重新发布。
+npm 版本不能重复发布。部分成功时，先用 `npm view <包名>@0.7.4` 核实已发布的包，只继续尚未发布的包；不要直接重新运行完整发布流程。若发布内容错误，需要提升所有相关版本后重新发布。
 
-推送 `v0.7.3` 这类 `v*` tag 后，`Build Release` 和 `Publish npm` 都会自动触发；`Publish npm` 仍保留手动入口用于补发。设置 `NPM_TOKEN` secret，按需配置 `npm` environment 的审批。工作流先在 Windows、macOS、Linux runner 上测试并验证各自当前架构的安装包，全部通过后再构建六个平台并依次发布原生包和启动器。`Build Release` 不是 npm 发布的前置依赖。
+推送 `v0.7.4` 这类 `v*` tag 后，`Build Release` 和 `Publish npm` 都会自动触发；`Publish npm` 仍保留手动入口用于补发。设置 `NPM_TOKEN` secret，按需配置 `npm` environment 的审批。工作流先在 Windows、macOS、Linux runner 上测试并验证各自当前架构的安装包，全部通过后再构建六个平台并依次发布原生包和启动器。`Build Release` 不是 npm 发布的前置依赖。
 
 ## npm 安装验收
 
 至少在 Windows x64、macOS arm64 和 Linux x64 上运行：
 
 ```bash
-npx -y @fruitbars/xfyun-ai-mcp@0.7.3 --version
+npx -y @fruitbars/xfyun-ai-mcp@0.7.4 --version
 ```
 
 然后在 MCP 宿主中确认六个工具可发现。配置讯飞凭证后，用小文件分别验收 OCR、TTS、RTASR 和 IFASR，并用本地音频验收 `xfyun_media`；大模型版 IFASR 保存 `order_id` 与 `signature_random`，标准版只保存 `order_id`，自动切片时保存全部 `parts`。这些真实接口调用可能收费，应手动执行。

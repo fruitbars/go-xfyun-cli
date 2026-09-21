@@ -57,7 +57,7 @@ jobs:
             (cd "npm/platforms/$target" && npm publish --access public)
             package="@fruitbars/xfyun-ai-mcp-$target"
             for attempt in 1 2 3 4 5 6 7 8 9 10; do
-              if [ "$(npm view "$package@$version" version 2>/dev/null || true)" = "$version" ]; then
+              if [ "$(npm view "$package@$version" version --json 2>/dev/null | tr -d '\"' || true)" = "$version" ]; then
                 break
               fi
               if [ "$attempt" = 10 ]; then
@@ -69,7 +69,7 @@ jobs:
           done
           (cd npm/xfyun-ai-mcp && npm publish --access public)
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            if [ "$(npm view "@fruitbars/xfyun-ai-mcp@$version" version 2>/dev/null || true)" = "$version" ]; then
+            if [ "$(npm view "@fruitbars/xfyun-ai-mcp@$version" version --json 2>/dev/null | tr -d '\"' || true)" = "$version" ]; then
               break
             fi
             if [ "$attempt" = 10 ]; then
