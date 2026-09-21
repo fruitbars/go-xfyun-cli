@@ -5,7 +5,7 @@
 The portable MCP entry point is:
 
 ```bash
-npx -y @fruitbars/xfyun-ai-mcp@0.7.0
+npx -y @fruitbars/xfyun-ai-mcp@0.7.2
 ```
 
 It selects the matching Windows, macOS, or Linux x64/arm64 native package. The npm packages must have been published before this command can work. For source development, build `xfyun-ai-mcp` and set `XFYUN_AI_MCP_BINARY` to its absolute path.
