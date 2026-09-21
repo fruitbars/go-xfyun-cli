@@ -3,6 +3,7 @@ package ifasr
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -17,7 +18,7 @@ func TestSaveTaskProtectsIdentifiers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("task file mode = %o, want 600", info.Mode().Perm())
 	}
 	if err := SaveTask(path, task, false); err == nil {
