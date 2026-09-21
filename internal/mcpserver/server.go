@@ -100,7 +100,7 @@ type OCRInput struct {
 	InputPath       string   `json:"input_path" jsonschema:"Path to a local image or PDF. Unsupported raster formats are converted automatically."`
 	OutputPath      string   `json:"output_path,omitempty" jsonschema:"Optional NDJSON destination. Multi-page results use a temporary NDJSON file when omitted."`
 	Force           bool     `json:"force,omitempty" jsonschema:"Allow replacement of an existing output_path after all pages succeed."`
-	Pages           string   `json:"pages,omitempty" jsonschema:"PDF page selection such as 1-3,5. Default: all pages."`
+	Pages           string   `json:"pages,omitempty" jsonschema:"PDF page selection such as 1-3,5. Default: all pages when the PDF has at most 200 pages; larger PDFs require ranges of at most 200 selected pages per call."`
 	PDFDPI          int      `json:"pdf_dpi,omitempty" jsonschema:"PDF page rendering resolution from 72 to 300 DPI. Default: 150."`
 	ResultFormat    string   `json:"result_format,omitempty" jsonschema:"json; json,markdown; json,sed; or json,markdown,sed. Default: json,markdown."`
 	IncludeRaw      bool     `json:"include_raw,omitempty" jsonschema:"Include the full decoded OCR JSON with coordinates and layout details. Default: false."`
