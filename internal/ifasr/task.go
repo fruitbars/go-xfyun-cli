@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"time"
 )
 
@@ -28,6 +30,9 @@ type TaskPart struct {
 }
 
 func NewTaskFile(variant Variant, batch BatchResult) TaskFile {
+	if variant == "" {
+		variant = VariantLLM
+	}
 	task := TaskFile{Version: 1, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Variant: variant, Requests: batch.Requests}
 	for _, part := range batch.Parts {
 		task.Parts = append(task.Parts, TaskPart{Index: part.Index, OrderID: part.Result.OrderID, SignatureRandom: part.Result.SignatureRand, SizeBytes: part.Size, DurationMS: part.DurationMS})
@@ -44,7 +49,7 @@ func LoadTask(path string) (TaskFile, error) {
 	if err := json.Unmarshal(data, &task); err != nil {
 		return TaskFile{}, fmt.Errorf("decode task file: %w", err)
 	}
-	if task.Version != 1 || task.Variant == "" || len(task.Parts) == 0 {
+	if task.Version != 1 || (task.Variant != VariantLLM && task.Variant != VariantStandard) || len(task.Parts) == 0 {
 		return TaskFile{}, fmt.Errorf("invalid IFASR task file: expected version 1, variant, and at least one part")
 	}
 	for index, part := range task.Parts {
@@ -102,12 +107,50 @@ func SaveTask(path string, task TaskFile, force bool) error {
 	if err := temporary.Close(); err != nil {
 		return fmt.Errorf("close task file: %w", err)
 	}
-	if force {
-		_ = os.Remove(abs)
-	}
-	if err := os.Rename(temporaryPath, abs); err != nil {
+	if err := commitTaskFile(temporaryPath, abs, force); err != nil {
 		return fmt.Errorf("commit task file: %w", err)
 	}
 	committed = true
+	return nil
+}
+
+func commitTaskFile(temporaryPath, destination string, force bool) error {
+	if !force {
+		if err := os.Link(temporaryPath, destination); err != nil {
+			return err
+		}
+		return os.Remove(temporaryPath)
+	}
+	if runtime.GOOS != "windows" {
+		return os.Rename(temporaryPath, destination)
+	}
+	// Windows cannot replace an existing file with Rename. Move the old file
+	// aside first, then restore it if committing the new file fails.
+	if _, err := os.Stat(destination); err != nil {
+		if os.IsNotExist(err) {
+			return os.Rename(temporaryPath, destination)
+		}
+		return err
+	}
+	backup, err := os.CreateTemp(filepath.Dir(destination), ".xfyun-task-backup-"+strconv.Itoa(os.Getpid())+"-*")
+	if err != nil {
+		return err
+	}
+	backupPath := backup.Name()
+	if err := backup.Close(); err != nil {
+		_ = os.Remove(backupPath)
+		return err
+	}
+	if err := os.Remove(backupPath); err != nil {
+		return err
+	}
+	if err := os.Rename(destination, backupPath); err != nil {
+		return err
+	}
+	if err := os.Rename(temporaryPath, destination); err != nil {
+		_ = os.Rename(backupPath, destination)
+		return err
+	}
+	_ = os.Remove(backupPath)
 	return nil
 }

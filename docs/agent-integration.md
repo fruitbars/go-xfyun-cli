@@ -12,7 +12,7 @@
 npx -y @fruitbars/xfyun-ai-mcp@latest --version
 ```
 
-这不是全局安装；`npx` 会下载并缓存包，`--version` 只做启动验收。下面的 CLI 快速注册使用 `@latest`；团队和生产环境推荐固定版本（当前为 `@0.7.5`），保证配置可复现。WorkBuddy 连接器仍按其单独的审核版本发布。
+这不是全局安装；`npx` 会下载并缓存包，`--version` 只做启动验收。下面的 CLI 快速注册使用 `@latest`；团队和生产环境推荐固定版本（当前为 `@0.7.6`），保证配置可复现。WorkBuddy 连接器仍按其单独的审核版本发布。
 
 需要 Node.js 18 或更高版本（WorkBuddy 连接器声明 Node.js 20）。npm 主包按平台安装原生可选依赖，支持 Windows、macOS、Linux 的 x64/arm64，并提供 IFASR 自动切片所需的媒体引擎。开发中的版本尚未发布时，可先从源码构建 `xfyun-ai-mcp`，或设置 `XFYUN_AI_MCP_BINARY` 指向本地二进制测试启动器。
 
@@ -52,7 +52,7 @@ codex mcp list
 ```toml
 [mcp_servers.xfyun-ai]
 command = "npx"
-args = ["-y", "@fruitbars/xfyun-ai-mcp@0.7.5"]
+args = ["-y", "@fruitbars/xfyun-ai-mcp@0.7.6"]
 env_vars = ["XFYUN_APP_ID", "XFYUN_API_KEY", "XFYUN_API_SECRET"]
 startup_timeout_sec = 10
 tool_timeout_sec = 30000
@@ -114,7 +114,7 @@ skills/xfyun-ai/references/*.md
 {
   "type": "stdio",
   "command": "npx",
-  "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.5"]
+  "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.6"]
 }
 ```
 
@@ -136,7 +136,7 @@ Cursor、Cline、Windsurf、Continue、Zed 等只要支持本地 stdio MCP，就
     "xfyun-ai": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.5"]
+      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.6"]
     }
   }
 }

@@ -5,7 +5,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@fruitbars/xfyun-ai-mcp@0.7.5"
+        "@fruitbars/xfyun-ai-mcp@0.7.6"
       ],
       "runtime": {
         "type": "node",

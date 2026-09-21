@@ -302,6 +302,8 @@ MCP 结构化结果还返回 `fail_type`、`language`、`original_duration_ms`�
 
 MCP 结果查询可以直接传同一个 `task_file_path`，工具会读取其中全部分片并按原顺序合并，无需手工复制 `orders`。
 
+任务文件还保存每个分片的 `duration_ms`。如果服务查询结果没有返回该分片的 `originalDuration`，合并时间轴会回退使用任务文件中的分片时长，避免后续分片的 SRT/VTT 时间戳从零重新开始。自动切片后的 `trackMode=2` 左右声道标签可以跨分片稳定合并；单声道 `roleType=1`/`roleType=3` 的角色编号属于各自订单，跨分片不保证同一个编号代表同一个真人。
+
 服务响应字段完整对照：
 
 | 层级 | 字段 | 说明 |

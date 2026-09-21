@@ -295,12 +295,25 @@ func sanitizeRequestParameters(params map[string]string) map[string]string {
 		if _, excluded := sensitive[key]; excluded {
 			continue
 		}
+		if sensitiveParameterName(key) {
+			continue
+		}
 		if key == "audioUrl" || key == "callbackUrl" {
 			value = redactURLQuery(value)
 		}
 		clean[key] = value
 	}
 	return clean
+}
+
+func sensitiveParameterName(key string) bool {
+	key = strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(key, "-", ""), "_", ""))
+	for _, marker := range []string{"token", "secret", "signature", "signa", "password", "apikey", "accesskey", "authorization"} {
+		if strings.Contains(key, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func redactURLQuery(value string) string {

@@ -11,6 +11,8 @@
 
 四项云能力统一使用讯飞控制台三元组 `APPID + APIKey + APISecret`；本地 `media` 工具不需要鉴权。CLI 的业务结果写 stdout，进度和错误写 stderr，适合 Agent 与自动化程序调用。
 
+按任务选择工具、了解会议转写、OCR 版面标注、长音频切片和 Agent 自动化流程，见 [功能与使用场景](docs/scenarios.md)。
+
 安装后可先运行自检：
 
 ```bash
@@ -32,7 +34,7 @@ npx -y @fruitbars/xfyun-ai-mcp@latest --version
 
 这条命令不会全局安装软件；`npx` 下载并缓存 npm 包，`--version` 只做启动验收。主 npm 包会自动选择 Windows、macOS、Linux 的 x64/arm64 原生包，不在运行时从 GitHub 下载二进制。
 
-下面的快速注册命令使用 `@latest`，适合希望自动获得新版本的个人用户。团队或生产环境可改为固定版本（当前为 `@0.7.5`），避免未经验证的自动升级。
+下面的快速注册命令使用 `@latest`，适合希望自动获得新版本的个人用户。团队或生产环境可改为固定版本（当前为 `@0.7.6`），避免未经验证的自动升级。
 
 用户不需要克隆仓库、安装 Go 或另行安装 FFmpeg。把 MCP 注册到 Agent 宿主后，只需配置同一个讯飞应用的 `APPID`、`APIKey`、`APISecret`，即可直接使用 OCR、TTS、RTASR 和 IFASR。
 
@@ -239,7 +241,7 @@ OCR、TTS 和 RTASR 的 MCP 结构化结果带有脱敏的 `diagnostics`；IFASR
     "xfyun-ai": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.5"]
+      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.6"]
     }
   }
 }

@@ -32,3 +32,20 @@ func TestSaveTaskProtectsIdentifiers(t *testing.T) {
 		t.Fatalf("loaded task = %+v, err = %v", loaded, err)
 	}
 }
+
+func TestNewTaskFileDefaultsToLargeModelVariant(t *testing.T) {
+	task := NewTaskFile("", BatchResult{Parts: []BatchPart{{Index: 1, Size: 10, Result: Result{OrderID: "order", SignatureRand: "random"}}}})
+	if task.Variant != VariantLLM {
+		t.Fatalf("variant = %q, want %q", task.Variant, VariantLLM)
+	}
+}
+
+func TestLoadTaskRejectsUnknownVariant(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "task.json")
+	if err := os.WriteFile(path, []byte(`{"version":1,"variant":"other","parts":[{"order_id":"order"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadTask(path); err == nil {
+		t.Fatal("expected unknown variant rejection")
+	}
+}

@@ -1,8 +1,8 @@
 {
   "name": "@fruitbars/xfyun-ai-mcp-win32-x64",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "description": "XFYun AI MCP native binary for Windows x64",
-  "repository": "https://github.com/fruitbars/go-xfyun-cli",
+  "repository": {"type": "git", "url": "git+https://github.com/fruitbars/go-xfyun-cli.git"},
   "os": ["win32"],
   "cpu": ["x64"],
   "files": ["bin"],

@@ -440,3 +440,20 @@ func TestValidateAudioURL(t *testing.T) {
 		t.Fatal("expected long audio URL error")
 	}
 }
+
+func TestSanitizeRequestParametersDropsSensitiveExtraKeys(t *testing.T) {
+	clean := sanitizeRequestParameters(map[string]string{
+		"eng_max_clusters": "2",
+		"token":            "secret-token",
+		"x-signature":      "secret-signature",
+		"safe_option":      "value",
+	})
+	if clean["eng_max_clusters"] != "2" || clean["safe_option"] != "value" {
+		t.Fatalf("safe parameters missing: %#v", clean)
+	}
+	for _, key := range []string{"token", "x-signature"} {
+		if _, ok := clean[key]; ok {
+			t.Fatalf("sensitive parameter %q was retained: %#v", key, clean)
+		}
+	}
+}

@@ -21,7 +21,9 @@ try {
   const launcher = path.join(temporary, "node_modules/@fruitbars/xfyun-ai-mcp/bin/xfyun-ai-mcp.js");
   const env = { ...process.env };
   delete env.XFYUN_AI_MCP_BINARY;
-  assert.equal(execFileSync(process.execPath, [launcher, "--version"], { encoding: "utf8", env }).trim(), version);
+  const nativeVersion = execFileSync(process.execPath, [launcher, "--version"], { encoding: "utf8", env }).trim();
+  assert.equal(nativeVersion, version,
+    `stale native binary ${nativeVersion}; run node scripts/build-release.mjs --host before package smoke testing`);
   await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [launcher], { env, stdio: ["pipe", "pipe", "pipe"] });
     let buffer = "";

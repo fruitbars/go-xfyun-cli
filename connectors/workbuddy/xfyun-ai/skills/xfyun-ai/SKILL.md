@@ -5,7 +5,7 @@ display_name_en: XFYun AI
 description: 使用讯飞云 AI 完成文档 OCR、语音合成、实时音频转写、录音文件转写和本地音频处理。
 description_zh: 使用讯飞云 AI 完成文档 OCR、语音合成、实时音频转写、录音文件转写和本地音频处理。
 description_en: Use XFYun AI tools for document OCR, speech synthesis, audio transcription, and local audio preparation.
-version: 0.7.5
+version: 0.7.6
 author: fruitbars
 ---
 

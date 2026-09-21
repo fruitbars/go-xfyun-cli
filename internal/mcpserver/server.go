@@ -171,12 +171,30 @@ func addOCRTool(server *mcp.Server, service *Service) {
 		if input.MarkdownOptions == "" {
 			input.MarkdownOptions = ocr.DefaultMarkdownElementOption
 		}
+		if input.ExifOption == "" {
+			input.ExifOption = "0"
+		}
+		if input.AlphaOption == "" {
+			input.AlphaOption = "0"
+		}
+		pdfDPI := input.PDFDPI
+		if pdfDPI == 0 {
+			pdfDPI = ocr.DefaultPDFDPI
+		}
+		rotationAngle := 5.0
+		if input.RotationAngle != nil {
+			rotationAngle = *input.RotationAngle
+		}
 		output := OCROutput{ResultFormat: input.ResultFormat}
 		started := time.Now()
 		ocrDiagnostics := newDiagnostics("ocr", "spark", "recognize", started)
 		ocrDiagnostics.Parameters["resultFormat"] = input.ResultFormat
 		ocrDiagnostics.Parameters["resultOption"] = input.ResultOption
 		ocrDiagnostics.Parameters["markdownOptions"] = input.MarkdownOptions
+		ocrDiagnostics.Parameters["exifOption"] = input.ExifOption
+		ocrDiagnostics.Parameters["alphaOption"] = input.AlphaOption
+		ocrDiagnostics.Parameters["rotationMinAngle"] = fmt.Sprintf("%.g", rotationAngle)
+		ocrDiagnostics.Parameters["pdfDPI"] = fmt.Sprintf("%d", pdfDPI)
 		if input.SEDOptions != "" {
 			ocrDiagnostics.Parameters["sedOptions"] = input.SEDOptions
 		}
@@ -196,10 +214,7 @@ func addOCRTool(server *mcp.Server, service *Service) {
 				return nil, OCROutput{}, err
 			}
 			output.AnnotationTypes = annotationTypes
-		}
-		rotationAngle := 5.0
-		if input.RotationAngle != nil {
-			rotationAngle = *input.RotationAngle
+			ocrDiagnostics.Parameters["annotationTypes"] = strings.Join(annotationTypes, ",")
 		}
 		client := ocr.Client{Credentials: service.credentials}
 		var outputFile *os.File
@@ -549,7 +564,15 @@ func addTTSTool(server *mcp.Server, service *Service) {
 			"sampleRate": fmt.Sprintf("%d", input.SampleRate), "speed": fmt.Sprintf("%d", speed),
 			"volume": fmt.Sprintf("%d", volume), "pitch": fmt.Sprintf("%d", pitch),
 			"oralLevel": input.OralLevel, "sparkAssist": fmt.Sprintf("%d", sparkAssist),
-			"segments": fmt.Sprintf("%d", metadata.Segments),
+			"stopSplit":         fmt.Sprintf("%d", intValue(input.StopSplit, 0)),
+			"remain":            fmt.Sprintf("%d", intValue(input.Remain, 0)),
+			"backgroundSound":   fmt.Sprintf("%d", intValue(input.BackgroundSound, 0)),
+			"englishReading":    fmt.Sprintf("%d", intValue(input.EnglishReading, 0)),
+			"numberReading":     fmt.Sprintf("%d", intValue(input.NumberReading, 0)),
+			"returnPronounce":   fmt.Sprintf("%d", intValue(input.ReturnPronounce, 0)),
+			"visibleWatermark":  fmt.Sprintf("%d", intValue(input.VisibleWatermark, 0)),
+			"implicitWatermark": fmt.Sprintf("%t", input.ImplicitWatermark),
+			"segments":          fmt.Sprintf("%d", metadata.Segments),
 		}
 		diagnostics.Output = map[string]string{"path": absolutePath, "bytes": fmt.Sprintf("%d", metadata.Bytes)}
 		diagnostics.finish(started)
@@ -623,8 +646,17 @@ func addRTASRTool(server *mcp.Server, service *Service) {
 		diagnostics.Parameters = map[string]string{
 			"language": input.Language, "audioEncoding": input.AudioEncoding,
 			"sampleRate": fmt.Sprintf("%d", input.SampleRate), "roleType": fmt.Sprintf("%d", input.RoleType),
+			"recognizedLanguage": input.RecognizedLanguage, "featureIDs": input.FeatureIDs,
 			"domain": input.Domain, "speakerMatch": fmt.Sprintf("%t", input.SpeakerMatch),
-			"segments": fmt.Sprintf("%d", result.Segments),
+			"keepPunctuation": diagnosticOptionalBool(input.KeepPunctuation),
+			"vadMode":         fmt.Sprintf("%d", input.VADMode),
+			"segments":        fmt.Sprintf("%d", result.Segments),
+		}
+		for key, value := range input.Extra {
+			if isSensitiveDiagnosticKey(key) {
+				continue
+			}
+			diagnostics.Parameters["extra."+key] = value
 		}
 		diagnostics.finish(started)
 		return nil, RTASROutput{Transcript: result.Transcript, SID: result.SID, Segments: result.Segments, Diagnostics: &diagnostics}, nil
@@ -693,9 +725,13 @@ func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 		Description: "Submit a local or HTTP(S) recording, automatically split over-limit local files, and return one or more orders needed to query transcription.",
 		Annotations: annotations(false, false, true),
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input IFASRSubmitInput) (*mcp.CallToolResult, IFASRSubmitOutput, error) {
-		client := ifasr.Client{Credentials: service.credentials}
+		variant := ifasr.Variant(input.Variant)
+		if variant == "" {
+			variant = ifasr.VariantLLM
+		}
+		client := ifasr.Client{Credentials: service.credentials, Variant: variant}
 		opts := ifasr.Options{
-			Variant:  ifasr.Variant(input.Variant),
+			Variant:  variant,
 			Language: input.Language, DurationMS: input.DurationMS, Domain: input.Domain, TrackMode: input.TrackMode,
 			CallbackURL: input.CallbackURL, RoleType: input.RoleType, RoleNum: input.RoleNum, FeatureIDs: input.FeatureIDs,
 			Smooth: input.Smooth, Colloquial: input.Colloquial, VADMode: input.VADMode,
@@ -708,10 +744,9 @@ func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 		opts.Progress = func(done, total int, message string) {
 			notifyProgress(ctx, req, float64(done), float64(total), message)
 		}
-		if opts.Variant != "" && opts.Variant != ifasr.VariantLLM && opts.Variant != ifasr.VariantStandard {
+		if opts.Variant != ifasr.VariantLLM && opts.Variant != ifasr.VariantStandard {
 			return nil, IFASRSubmitOutput{}, fmt.Errorf("variant must be llm or standard")
 		}
-		client.Variant = opts.Variant
 		hasPath, hasURL := input.InputPath != "", input.AudioURL != ""
 		if hasPath == hasURL {
 			return nil, IFASRSubmitOutput{}, fmt.Errorf("provide exactly one of input_path or audio_url")
@@ -862,6 +897,7 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 		if variant != ifasr.VariantLLM && variant != ifasr.VariantStandard {
 			return nil, IFASRResultOutput{}, fmt.Errorf("variant must be llm or standard")
 		}
+		taskDurations := make(map[string]int64)
 		if input.TaskFilePath != "" {
 			task, err := ifasr.LoadTask(input.TaskFilePath)
 			if err != nil {
@@ -875,6 +911,9 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 			}
 			for _, part := range task.Parts {
 				input.Orders = append(input.Orders, IFASROrderRef{OrderID: part.OrderID, SignatureRandom: part.SignatureRandom})
+				if part.DurationMS > 0 {
+					taskDurations[part.OrderID] = part.DurationMS
+				}
 			}
 		}
 		hasSingle := input.OrderID != ""
@@ -921,7 +960,7 @@ func addIFASRResultTool(server *mcp.Server, service *Service) {
 			if variant == ifasr.VariantStandard && order.SignatureRandom != "" {
 				return nil, IFASRResultOutput{}, fmt.Errorf("orders[%d] for standard variant must not include signature_random", index)
 			}
-			part, err := queryIFASRPart(ctx, req, &client, order, input, index, len(orders))
+			part, err := queryIFASRPart(ctx, req, &client, order, input, index, len(orders), taskDurations[order.OrderID])
 			if err != nil {
 				return nil, IFASRResultOutput{}, fmt.Errorf("query IFASR part %d/%d: %w", index+1, len(orders), err)
 			}
@@ -983,7 +1022,7 @@ func aggregateIFASRStatus(current, next int) int {
 	return current
 }
 
-func queryIFASRPart(ctx context.Context, req *mcp.CallToolRequest, client *ifasr.Client, order IFASROrderRef, input IFASRResultInput, index, total int) (IFASRPartResult, error) {
+func queryIFASRPart(ctx context.Context, req *mcp.CallToolRequest, client *ifasr.Client, order IFASROrderRef, input IFASRResultInput, index, total int, fallbackDuration int64) (IFASRPartResult, error) {
 	var result ifasr.Result
 	if input.Wait {
 		var err error
@@ -1021,12 +1060,16 @@ func queryIFASRPart(ctx context.Context, req *mcp.CallToolRequest, client *ifasr
 		}
 	}
 	info := result.Response.Content.OrderInfo
+	originalDuration := info.OriginalDuration
+	if originalDuration == 0 {
+		originalDuration = fallbackDuration
+	}
 	part := IFASRPartResult{
 		OrderID: order.OrderID, Status: info.Status, FailType: info.FailType,
 		Transcript: result.Transcript, OriginalTranscript: result.OriginalTranscript,
 		Utterances: toMCPIFASRUtterances(result.Utterances),
 		Speakers:   toMCPIFASRSpeakers(result.Speakers),
-		Language:   info.Language, OriginalDurationMS: info.OriginalDuration,
+		Language:   info.Language, OriginalDurationMS: originalDuration,
 		ExpireTime: info.ExpireTime, TaskEstimateTime: result.Response.Content.TaskEstimateTime,
 		Requests: result.Requests,
 	}
@@ -1212,6 +1255,23 @@ func intValue(value *int, fallback int) int {
 		return fallback
 	}
 	return *value
+}
+
+func diagnosticOptionalBool(value *bool) string {
+	if value == nil {
+		return "service-default"
+	}
+	return fmt.Sprintf("%t", *value)
+}
+
+func isSensitiveDiagnosticKey(key string) bool {
+	key = strings.ToLower(strings.NewReplacer("-", "", "_", "").Replace(key))
+	for _, marker := range []string{"token", "secret", "signature", "signa", "password", "apikey", "accesskey", "authorization"} {
+		if strings.Contains(key, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func cloneStringMap(source map[string]string) map[string]string {

@@ -8,6 +8,8 @@ npx -y @fruitbars/xfyun-ai-mcp@latest --version
 
 The launcher selects an npm optional dependency for Windows, macOS, or Linux on x64/arm64 and starts the native Go server with inherited stdio and environment variables. It exposes six tools: `xfyun_ocr`, `xfyun_tts` (XFYun super-smart large-model synthesis), `xfyun_rtasr`, `xfyun_ifasr_submit`, `xfyun_ifasr_result`, and `xfyun_media`.
 
+For a task-oriented tool selection guide covering document OCR, annotated layouts, TTS, live transcription, long recordings, speaker output, and media preparation, see the repository's [功能与使用场景](https://github.com/fruitbars/go-xfyun-cli/blob/main/docs/scenarios.md).
+
 For CLI installations, run `xfyun doctor --json` before registering an MCP host. It reports only boolean credential presence, runtime/platform details, temporary-directory writability, and FFmpeg availability; it never prints credential values. Use `--strict` in CI.
 
 Configure `XFYUN_APP_ID`, `XFYUN_API_KEY`, and `XFYUN_API_SECRET` from the same XFYun application in the MCP host. There is no separate fourth IFASR credential. Restart the host after changing its environment; an already-running MCP process cannot inherit later shell changes.
