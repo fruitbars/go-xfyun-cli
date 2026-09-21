@@ -298,6 +298,10 @@ MCP 结构化结果还返回 `fail_type`、`language`、`original_duration_ms`�
 
 等待完成的同步调用会同时保留 `upload` 和 `query`；单独查询只返回本次 `query`。自动切片时顶层 `requests` 汇总全部分片，各 `parts[].requests` 保留对应分片的参数。`requests` 只记录业务参数，不包含 `appId`、`accessKeyId`、`dateTime`、`ts`、`signa`、签名请求头或 `signatureRandom`；续查必需的 `signature_random` 仍单独位于结果顶层。`audioUrl` 和 `callbackUrl` 的查询字符串会显示为 `?redacted`，防止临时访问令牌泄漏。
 
+长任务可在提交时使用 CLI 的 `--task-file path.json` 或 MCP 的 `task_file_path` 保存续跑文件。文件权限固定为 `0600`，包含 `version`、`variant`、全部分片的 `order_id`/`signature_random`、文件元数据和 `requests`；默认拒绝覆盖，CLI 使用 `--task-file-force`、MCP 使用 `task_file_force=true` 才会替换。任务文件不包含 APIKey、APISecret 或签名请求参数。
+
+MCP 结果查询可以直接传同一个 `task_file_path`，工具会读取其中全部分片并按原顺序合并，无需手工复制 `orders`。
+
 服务响应字段完整对照：
 
 | 层级 | 字段 | 说明 |

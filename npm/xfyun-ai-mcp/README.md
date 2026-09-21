@@ -8,6 +8,8 @@ npx -y @fruitbars/xfyun-ai-mcp@latest --version
 
 The launcher selects an npm optional dependency for Windows, macOS, or Linux on x64/arm64 and starts the native Go server with inherited stdio and environment variables. It exposes six tools: `xfyun_ocr`, `xfyun_tts` (XFYun super-smart large-model synthesis), `xfyun_rtasr`, `xfyun_ifasr_submit`, `xfyun_ifasr_result`, and `xfyun_media`.
 
+For CLI installations, run `xfyun doctor --json` before registering an MCP host. It reports only boolean credential presence, runtime/platform details, temporary-directory writability, and FFmpeg availability; it never prints credential values. Use `--strict` in CI.
+
 Configure `XFYUN_APP_ID`, `XFYUN_API_KEY`, and `XFYUN_API_SECRET` from the same XFYun application in the MCP host. There is no separate fourth IFASR credential. Restart the host after changing its environment; an already-running MCP process cannot inherit later shell changes.
 
 To configure Codex without editing TOML by hand, run:
@@ -38,7 +40,11 @@ Status `0` means created, `3` processing, `4` complete, and `-1` failed. Use `wa
 
 Every IFASR submit/query result includes `requests`, pairing the order with effective non-secret provider parameters such as language, role, detected `trackMode`, and per-part file metadata. Authentication fields are excluded; URL query strings are redacted. Split results aggregate the traces and retain them on each part.
 
+For long jobs, pass `task_file_path` to `xfyun_ifasr_submit` to save a local mode-0600 continuation file containing all order references and request traces. Pass the same `task_file_path` to `xfyun_ifasr_result` to resume and merge every part without manually copying `orders`. Existing files are protected by default; set `task_file_force=true` only when replacement is intentional.
+
 Hosts that provide an MCP progress token receive progress notifications for TTS segments and IFASR part submission/polling. Hosts without progress support should use the returned output paths, `wait=false`, and saved order references to resume long work safely.
+
+OCR, TTS, RTASR, and IFASR structured responses include redacted `diagnostics` with effective parameters, SID/order identifiers, elapsed time, segment/page counts, and output metadata. IFASR keeps `requests[]` as its detailed compatibility field. Credentials, signatures, and URL query tokens are never included.
 
 Set `include_raw=true` when speaker IDs, word timing, stereo `label.rl_track`, or other detailed fields are needed. `raw_result` contains `orderResult`; `raw_response` preserves the complete service response, including reserved future result fields.
 

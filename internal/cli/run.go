@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -43,6 +45,8 @@ func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.
 		return runIFASR(ctx, args[1:], stdin, stdout, stderr)
 	case "media":
 		return runMedia(ctx, args[1:], stdout, stderr)
+	case "doctor":
+		return runDoctor(args[1:], stdout, stderr)
 	default:
 		usage(stderr)
 		return fmt.Errorf("unknown command %q", args[0])
@@ -61,12 +65,96 @@ Commands:
   rtasr     Stream an audio file to real-time transcription
   ifasr     Upload an audio file and wait for transcription
   media     Probe or convert local audio media
+  doctor    Check credentials, runtime, and local prerequisites
   version   Print version
 
 Credentials (OCR, TTS, RTASR, and IFASR):
   XFYUN_APP_ID, XFYUN_API_KEY, XFYUN_API_SECRET
 
 Run "xfyun <command> --help" for command options.`)
+}
+
+type doctorReport struct {
+	Version             string   `json:"version"`
+	OS                  string   `json:"os"`
+	Arch                string   `json:"arch"`
+	AppIDConfigured     bool     `json:"app_id_configured"`
+	APIKeyConfigured    bool     `json:"api_key_configured"`
+	APISecretConfigured bool     `json:"api_secret_configured"`
+	CredentialsReady    bool     `json:"credentials_ready"`
+	FFmpegAvailable     bool     `json:"ffmpeg_available"`
+	TempDirWritable     bool     `json:"temp_dir_writable"`
+	WorkingDirectory    string   `json:"working_directory,omitempty"`
+	Warnings            []string `json:"warnings,omitempty"`
+}
+
+func runDoctor(args []string, stdout, stderr io.Writer) error {
+	fs := newFlagSet("doctor", stderr)
+	jsonOutput := fs.Bool("json", false, "print a machine-readable JSON report")
+	strict := fs.Bool("strict", false, "exit non-zero when credentials or local prerequisites are missing")
+	fs.Usage = func() {
+		fmt.Fprintln(stderr, "Usage: xfyun doctor [--json] [--strict]")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return fmt.Errorf("unexpected arguments: %s", strings.Join(fs.Args(), " "))
+	}
+	var credentials config.Credentials
+	credentials.FromEnv()
+	workingDirectory, _ := os.Getwd()
+	report := doctorReport{
+		Version: version.Current, OS: runtime.GOOS, Arch: runtime.GOARCH,
+		AppIDConfigured: credentials.AppID != "", APIKeyConfigured: credentials.APIKey != "", APISecretConfigured: credentials.APISecret != "",
+		CredentialsReady: credentials.ValidateSigned() == nil,
+		FFmpegAvailable:  commandAvailable("ffmpeg"), WorkingDirectory: workingDirectory,
+	}
+	temporary, err := os.CreateTemp("", "xfyun-doctor-*")
+	if err == nil {
+		report.TempDirWritable = true
+		name := temporary.Name()
+		_ = temporary.Close()
+		_ = os.Remove(name)
+	} else {
+		report.Warnings = append(report.Warnings, "system temporary directory is not writable")
+	}
+	if !report.CredentialsReady {
+		report.Warnings = append(report.Warnings, "set XFYUN_APP_ID, XFYUN_API_KEY, and XFYUN_API_SECRET for OCR, TTS, RTASR, and IFASR large-model calls")
+	}
+	if !report.FFmpegAvailable {
+		report.Warnings = append(report.Warnings, "ffmpeg is unavailable; xfyun_media conversion and some audio probing operations may fail")
+	}
+	if *jsonOutput {
+		if err := writeJSON(stdout, report); err != nil {
+			return err
+		}
+	} else {
+		fmt.Fprintf(stdout, "xfyun doctor %s (%s/%s)\n", report.Version, report.OS, report.Arch)
+		fmt.Fprintf(stdout, "credentials: app_id=%s api_key=%s api_secret=%s\n", configured(report.AppIDConfigured), configured(report.APIKeyConfigured), configured(report.APISecretConfigured))
+		fmt.Fprintf(stdout, "ffmpeg: %s\n", configured(report.FFmpegAvailable))
+		fmt.Fprintf(stdout, "temporary directory: %s\n", configured(report.TempDirWritable))
+		for _, warning := range report.Warnings {
+			fmt.Fprintf(stdout, "warning: %s\n", warning)
+		}
+	}
+	if *strict && (len(report.Warnings) > 0 || !report.TempDirWritable) {
+		return fmt.Errorf("doctor found %d issue(s)", len(report.Warnings))
+	}
+	return nil
+}
+
+func configured(value bool) string {
+	if value {
+		return "ok"
+	}
+	return "missing"
+}
+
+func commandAvailable(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
 }
 
 func runOCR(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
@@ -387,6 +475,8 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	maxWait := fs.Duration("max-wait", 30*time.Minute, "maximum wait for a completed order")
 	noWait := fs.Bool("no-wait", false, "upload or query once and print machine-readable state")
 	raw := fs.Bool("raw", false, "print the complete result as JSON")
+	taskFile := fs.String("task-file", "", "save order identifiers and request traces to a local 0600 continuation file")
+	taskFileForce := fs.Bool("task-file-force", false, "replace an existing --task-file")
 	speakerOutputDir := fs.String("speaker-output-dir", "", "write speakers.txt and one text file per speaker")
 	speakerTimestamps := fs.Bool("speaker-timestamps", false, "include [start --> end] timestamps in speaker text files")
 	speakerForce := fs.Bool("speaker-force", false, "allow replacement of existing speaker text files")
@@ -475,6 +565,21 @@ func runIFASR(ctx context.Context, args []string, stdin io.Reader, stdout, stder
 	}
 	if err != nil {
 		return err
+	}
+	if *taskFile != "" {
+		if *orderID != "" {
+			return fmt.Errorf("--task-file is only valid when uploading with --input or --audio-url")
+		}
+		var task ifasr.TaskFile
+		if *inputPath != "" {
+			task = ifasr.NewTaskFile(ifasr.Variant(*variant), batch)
+		} else {
+			task = ifasr.TaskFile{Version: 1, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano), Variant: ifasr.Variant(*variant), Parts: []ifasr.TaskPart{{Index: 1, OrderID: result.OrderID, SignatureRandom: result.SignatureRand, SizeBytes: *fileSizeBytes}}, Requests: result.Requests}
+		}
+		if err := ifasr.SaveTask(*taskFile, task, *taskFileForce); err != nil {
+			return err
+		}
+		fmt.Fprintf(stderr, "saved IFASR continuation task to %s\n", *taskFile)
 	}
 	if *inputPath != "" {
 		batch.TranscriptFormat = *transcriptFormat

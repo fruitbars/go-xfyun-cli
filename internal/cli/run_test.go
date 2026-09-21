@@ -63,3 +63,29 @@ func TestIFASRURLRequiresRemoteMetadata(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestDoctorDoesNotExposeCredentialValues(t *testing.T) {
+	t.Setenv("XFYUN_APP_ID", "secret-app")
+	t.Setenv("XFYUN_API_KEY", "secret-key")
+	t.Setenv("XFYUN_API_SECRET", "secret-secret")
+	var stdout, stderr bytes.Buffer
+	if err := Run(context.Background(), []string{"doctor", "--json"}, bytes.NewReader(nil), &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stdout.String(), "secret-") || !strings.Contains(stdout.String(), `"credentials_ready": true`) {
+		t.Fatalf("doctor output leaked credentials or was incomplete: %s", stdout.String())
+	}
+}
+
+func TestDoctorReportsMissingCredentials(t *testing.T) {
+	t.Setenv("XFYUN_APP_ID", "")
+	t.Setenv("XFYUN_API_KEY", "")
+	t.Setenv("XFYUN_API_SECRET", "")
+	var stdout, stderr bytes.Buffer
+	if err := Run(context.Background(), []string{"doctor", "--json"}, bytes.NewReader(nil), &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), `"credentials_ready": false`) || !strings.Contains(stdout.String(), "XFYUN_APP_ID") {
+		t.Fatalf("doctor did not report missing credentials: %s", stdout.String())
+	}
+}

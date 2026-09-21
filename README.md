@@ -11,6 +11,15 @@
 
 四项云能力统一使用讯飞控制台三元组 `APPID + APIKey + APISecret`；本地 `media` 工具不需要鉴权。CLI 的业务结果写 stdout，进度和错误写 stderr，适合 Agent 与自动化程序调用。
 
+安装后可先运行自检：
+
+```bash
+xfyun doctor
+xfyun doctor --json
+```
+
+`doctor` 只报告变量是否已配置，不会打印任何凭证值；`--strict` 适合 CI，在环境变量或本地依赖缺失时返回非零退出码。
+
 ## 安装
 
 ### MCP：无需全局安装（推荐）
@@ -23,7 +32,7 @@ npx -y @fruitbars/xfyun-ai-mcp@latest --version
 
 这条命令不会全局安装软件；`npx` 下载并缓存 npm 包，`--version` 只做启动验收。主 npm 包会自动选择 Windows、macOS、Linux 的 x64/arm64 原生包，不在运行时从 GitHub 下载二进制。
 
-下面的快速注册命令使用 `@latest`，适合希望自动获得新版本的个人用户。团队或生产环境可改为固定版本（当前为 `@0.6.2`），避免未经验证的自动升级。
+下面的快速注册命令使用 `@latest`，适合希望自动获得新版本的个人用户。团队或生产环境可改为固定版本（当前为 `@0.7.0`），避免未经验证的自动升级。
 
 用户不需要克隆仓库、安装 Go 或另行安装 FFmpeg。把 MCP 注册到 Agent 宿主后，只需配置同一个讯飞应用的 `APPID`、`APIKey`、`APISecret`，即可直接使用 OCR、TTS、RTASR 和 IFASR。
 
@@ -155,6 +164,7 @@ xfyun rtasr --input speech.pcm --punctuation=false
 xfyun ifasr --input meeting.mp3
 xfyun ifasr --variant standard --input meeting.mp3 --language cn
 xfyun ifasr --input meeting.mp3 --no-wait > order.json
+xfyun ifasr --input meeting.mp3 --no-wait --task-file meeting.task.json
 xfyun ifasr --input stereo.wav --track-mode 2 --raw
 xfyun ifasr --audio-url 'https://media.example/meeting.wav' --file-name meeting.wav --file-size-bytes 12345678
 xfyun ifasr --order-id 'DKHJQ...' --signature-random 'AbCd...' --no-wait
@@ -181,6 +191,8 @@ xfyun ifasr --input stereo.wav --role-type 1 --role-num 2 --speaker-output-dir .
 大模型版普通提交后必须同时保存 `order_id` 与 `signature_random`；标准版只需保存 `order_id`。自动切片时保存返回的 `parts` 数组，并原样传给结果查询的 `orders`。状态 `0` 为已创建、`3` 为处理中、`4` 为完成、`-1` 为失败。本地 `fileStream` 支持超限自动切片；外链 `urlLink` 需要同时提供 URL、文件名和字节数，且必须保持在单任务限制内。
 
 提交和查询结果的 `requests[]` 会带回实际生效的非敏感参数，便于把 `order_id`、自动推导的 `trackMode`、语言、角色和分片参数一起排查。鉴权字段不会进入快照，外链与回调 URL 的查询字符串会脱敏。
+
+长任务可以使用 `--task-file path.json`（或 MCP 的 `task_file_path`）保存一个权限为 `0600` 的续跑文件。文件只包含订单标识、必要的 `signature_random`、分片元数据和请求快照，不包含 APISecret；提交后把其中的订单引用交给结果查询即可。默认拒绝覆盖已有任务文件，需要明确使用 `--task-file-force` 或 `task_file_force=true`。
 
 两个接口的凭证字段映射、完整参数对照、MCP/CLI 流程、老 lfasr 兼容参数透传、批量续跑策略、结果字段和错误排查见 [IFASR 使用指南](docs/ifasr.md)。
 
@@ -215,6 +227,8 @@ IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先
 
 长任务的进度通知也覆盖 TTS 分段和 IFASR 的分片提交/轮询；CLI 将进度写入 stderr，stdout 仍保持机器可读结果。MCP 宿主需要在调用中提供 progress token 才会收到通知；不支持通知的宿主仍可使用 OCR 的 NDJSON、IFASR 的 `wait=false` 和任务标识续跑策略。
 
+OCR、TTS、RTASR 和 IFASR 的 MCP 结构化结果都带有脱敏的 `diagnostics`（IFASR 另保留兼容的 `requests[]`），其中包括实际生效参数、SID/订单号、开始时间、耗时、分段或页数以及输出文件信息。诊断数据不会包含 APIKey、APISecret、签名或带查询令牌的 URL；排查问题时可直接把 `order_id`/`sid` 与 `diagnostics` 一起提供。
+
 通用 stdio 配置：
 
 ```json
@@ -223,7 +237,7 @@ IFASR 拆成提交与查询，方便 Agent 跨回合保存任务标识。TTS 先
     "xfyun-ai": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.6.2"]
+      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.0"]
     }
   }
 }

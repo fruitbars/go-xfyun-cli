@@ -12,7 +12,7 @@
 npx -y @fruitbars/xfyun-ai-mcp@latest --version
 ```
 
-这不是全局安装；`npx` 会下载并缓存包，`--version` 只做启动验收。下面的 CLI 快速注册使用 `@latest`；团队和生产环境推荐固定版本（当前为 `@0.6.2`），保证配置可复现。WorkBuddy 连接器仍按其单独的审核版本发布。
+这不是全局安装；`npx` 会下载并缓存包，`--version` 只做启动验收。下面的 CLI 快速注册使用 `@latest`；团队和生产环境推荐固定版本（当前为 `@0.7.0`），保证配置可复现。WorkBuddy 连接器仍按其单独的审核版本发布。
 
 需要 Node.js 18 或更高版本（WorkBuddy 连接器声明 Node.js 20）。npm 主包按平台安装原生可选依赖，支持 Windows、macOS、Linux 的 x64/arm64，并提供 IFASR 自动切片所需的媒体引擎。开发中的版本尚未发布时，可先从源码构建 `xfyun-ai-mcp`，或设置 `XFYUN_AI_MCP_BINARY` 指向本地二进制测试启动器。
 
@@ -25,6 +25,8 @@ XFYUN_API_SECRET
 ```
 
 不要把真实值提交到仓库、Skill、`.mcp.json` 或提示词。
+
+命令行用户可以先运行 `xfyun doctor --json` 检查变量、临时目录和 FFmpeg；输出只包含布尔状态，不包含凭证值。CI 可使用 `xfyun doctor --strict`。
 
 MCP 服务进程只会继承宿主进程启动时的环境变量。修改或新增凭证后必须完全重启 Codex、Claude Code 或其他宿主；仅在已经打开的宿主背后执行 `export` 不会更新已运行的 MCP 子进程。Codex CLI 应从已设置变量的同一个终端启动；Codex 图形界面可先用 macOS 的 `launchctl setenv` 写入登录会话，再退出并重新打开应用。
 
@@ -50,7 +52,7 @@ codex mcp list
 ```toml
 [mcp_servers.xfyun-ai]
 command = "npx"
-args = ["-y", "@fruitbars/xfyun-ai-mcp@0.6.2"]
+args = ["-y", "@fruitbars/xfyun-ai-mcp@0.7.0"]
 env_vars = ["XFYUN_APP_ID", "XFYUN_API_KEY", "XFYUN_API_SECRET"]
 startup_timeout_sec = 10
 tool_timeout_sec = 30000
@@ -112,13 +114,15 @@ skills/xfyun-ai/references/*.md
 {
   "type": "stdio",
   "command": "npx",
-  "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.6.2"]
+  "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.0"]
 }
 ```
 
 跨平台能力来自 npm 的六个原生可选依赖，不依赖用户预装 Go，也不需要手动把二进制加入 PATH。TTS 超过 64 KiB 时自动按文本边界分段并输出一个文件；IFASR 超过 5 小时或 500 MiB 时自动无损切片，结果工具会汇总全部分片。前提是主包和所有平台包已发布。提交市场前还需确认 `source: "xfyun-ai"` 的全局唯一性，并按 WorkBuddy 开放平台流程打包审核。
 
 连接器为多页 PDF 设置 30 分钟工具超时。PDF 会逐页渲染、压缩、OCR、写出 NDJSON 并释放页面；多页调用返回 `output_path`，不会把所有页面内容积压在 MCP 响应内存中。支持 progress token 时宿主可显示逐页进度。超长文档建议通过 `pages` 分批调用。
+
+四类云接口的 MCP 结果均包含脱敏 `diagnostics`。其中会记录实际参数、SID/订单号、耗时、分段或页数和输出路径；IFASR 同时提供 `requests[]` 以保持既有集成兼容。鉴权字段、签名和 URL 查询令牌永不进入诊断信息。
 
 ## 其他 Agent 产品
 
@@ -130,7 +134,7 @@ Cursor、Cline、Windsurf、Continue、Zed 等只要支持本地 stdio MCP，就
     "xfyun-ai": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.6.2"]
+      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.0"]
     }
   }
 }

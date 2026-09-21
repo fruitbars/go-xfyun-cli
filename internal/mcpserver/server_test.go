@@ -53,6 +53,9 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 		if tool.Name == "xfyun_ifasr_result" && !strings.Contains(string(schema), `"orders"`) {
 			t.Fatalf("IFASR result schema does not expose split orders: %s", schema)
 		}
+		if tool.Name == "xfyun_ifasr_result" && !strings.Contains(string(schema), `"task_file_path"`) {
+			t.Fatalf("IFASR result schema does not expose task_file_path: %s", schema)
+		}
 		if tool.Name == "xfyun_ifasr_submit" {
 			for _, field := range []string{`"variant"`, `"audio_url"`, `"file_name"`, `"file_size_bytes"`, `"track_mode"`, `"hot_word"`, `"language_type"`} {
 				if !strings.Contains(string(schema), field) {
@@ -69,6 +72,15 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 				if !strings.Contains(string(outputSchema), field) {
 					t.Fatalf("IFASR result output schema does not expose %s: %s", field, outputSchema)
 				}
+			}
+		}
+		if tool.Name == "xfyun_ocr" || tool.Name == "xfyun_tts" || tool.Name == "xfyun_rtasr" {
+			outputSchema, err := json.Marshal(tool.OutputSchema)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(outputSchema), `"diagnostics"`) {
+				t.Fatalf("%s output schema does not expose diagnostics: %s", tool.Name, outputSchema)
 			}
 		}
 		if tool.Name == "xfyun_media" {
