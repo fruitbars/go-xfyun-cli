@@ -3,7 +3,7 @@
     "xfyun-ai": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.4"]
+      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.5"]
     }
   }
 }
