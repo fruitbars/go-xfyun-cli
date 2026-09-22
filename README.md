@@ -47,7 +47,7 @@ npx -y @fruitbars/xfyun-ai-mcp@latest --version
 
 这条命令不会全局安装软件；`npx` 下载并缓存 npm 包，`--version` 只做启动验收。主 npm 包会自动选择 Windows、macOS、Linux 的 x64/arm64 原生包，不在运行时从 GitHub 下载二进制。
 
-下面的快速注册命令使用 `@latest`，适合希望自动获得新版本的个人用户。团队或生产环境可改为固定版本（当前为 `@0.7.6`），避免未经验证的自动升级。
+下面的快速注册命令使用 `@latest`，适合希望自动获得新版本的个人用户。团队或生产环境可改为固定版本（当前为 `@0.7.7`），避免未经验证的自动升级。
 
 用户不需要克隆仓库、安装 Go 或另行安装 FFmpeg。把 MCP 注册到 Agent 宿主后，只需配置同一个讯飞应用的 `APPID`、`APIKey`、`APISecret`，即可直接使用 OCR、TTS、RTASR 和 IFASR。
 
@@ -128,7 +128,7 @@ xfyun ocr --input report.pdf --pages 1-5 --pdf-dpi 150
 
 接口原生支持 `jpg/jpeg/png/bmp`；GIF、WebP、TIFF 等可解码位图会在纯 Go 内自动转为 JPEG/PNG。源图片最大 32 MiB；超过上传阈值时自动压缩/缩放，使实际图像载荷不超过 4 MiB、base64 不超过 10 MiB。需要透明通道时保留 PNG，否则优先转为高质量 JPEG。
 
-PDF 使用内嵌的 PDFium WebAssembly（无 CGO、无系统依赖）按页栅格化，文本型、矢量型和扫描型 PDF 都支持；默认 150 DPI，可用 `--pdf-dpi 72..300` 调整。页面严格逐页渲染、压缩、OCR、输出结果和释放，页图与识别结果都不会在内存中整份堆积；多页 CLI 结果是一页一行的 NDJSON，可边运行边消费。单页仍保持原来的直接输出。临时渲染位图限制为 4000 万像素，超大页面会自动降低 DPI（最低 72）；PDFium WASM 内存硬上限为 512 MiB，同一进程内的 PDF 渲染会串行排队，避免并发文档叠加峰值。单个 PDF 文件最大 500 MiB；每次调用最多选择 200 页，并非限制 PDF 的总页数。页数更多的 PDF 可用 `--pages 1-200`、`--pages 201-400` 等范围分批处理，`--pages 1-3,5` 也可选择离散页码。高级参数还包括：
+PDF 使用内嵌的 PDFium WebAssembly（无 CGO、无系统依赖）按页栅格化，文本型、矢量型和扫描型 PDF 都支持；默认 150 DPI，可用 `--pdf-dpi 72..300` 调整。页面严格逐页渲染、压缩、OCR、输出结果和释放，页图与识别结果都不会在内存中整份堆积；多页 CLI 结果是一页一行的 NDJSON，可边运行边消费。单页仍保持原来的直接输出。临时渲染位图限制为 4000 万像素，超大页面会自动降低 DPI（最低 72）；PDFium WASM 内存硬上限为 512 MiB，同一进程内的 PDF 渲染会串行排队，避免并发文档叠加峰值。单个 PDF 文件最大 500 MiB，页数不设客户端硬上限；选中超过 1000 页时，MCP 需 `confirm_large_pdf=true`、CLI 需 `--confirm-large-pdf` 才会开始逐页请求。`--pages 1-3,5` 可限制页码，适合超大文件分批或只处理指定页面。高级参数还包括：
 
 - `--markdown-elements`、`--sed-elements`
 - `--rotation-min-angle 0..180`
@@ -254,7 +254,7 @@ OCR、TTS 和 RTASR 的 MCP 结构化结果带有脱敏的 `diagnostics`；IFASR
     "xfyun-ai": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.6"]
+      "args": ["-y", "@fruitbars/xfyun-ai-mcp@0.7.7"]
     }
   }
 }

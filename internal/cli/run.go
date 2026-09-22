@@ -164,6 +164,7 @@ func runOCR(ctx context.Context, args []string, stdin io.Reader, stdout, stderr 
 	input := fs.String("input", "", "image or PDF path, or - for stdin")
 	encoding := fs.String("encoding", "", "optional input encoding override")
 	pages := fs.String("pages", "", "PDF page selection such as 1-3,5; default all")
+	confirmLargePDF := fs.Bool("confirm-large-pdf", false, "confirm OCR processing when the selected PDF pages exceed 1000")
 	pdfDPI := fs.Int("pdf-dpi", ocr.DefaultPDFDPI, "PDF rendering resolution from 72 to 300 DPI")
 	resultFormat := fs.String("result-format", "json,markdown", "API result formats")
 	resultOption := fs.String("result-option", "normal", "normal, normal,char, or no_line_position variants")
@@ -209,6 +210,9 @@ func runOCR(ctx context.Context, args []string, stdin io.Reader, stdout, stderr 
 	}
 	encoder := json.NewEncoder(stdout)
 	err = ocr.StreamPath(ctx, inputPath, *pages, *pdfDPI, func(documentImage ocr.DocumentImage) error {
+		if documentImage.PageCount > ocr.LargePDFConfirmPages && !*confirmLargePDF {
+			return &ocr.LargePDFConfirmationError{Pages: documentImage.PageCount}
+		}
 		imageEncoding := documentImage.Encoding
 		if *encoding != "" {
 			imageEncoding = *encoding

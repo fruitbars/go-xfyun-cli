@@ -72,7 +72,7 @@ For TTS, prefer `lame` (playable MP3, the default) or `raw` (headerless PCM). XF
 
 PDF OCR uses embedded PDFium WebAssembly: no CGO, Poppler, or other system renderer is required. Text, vector, and scanned PDFs render at 150 DPI by default. Rendering, compression, OCR, NDJSON result writing, and cleanup happen one page at a time, so memory use does not grow with the full document. The PDFium runtime has a 512 MiB hard limit and concurrent PDFs are serialized within one server process. Multi-page MCP calls return an `output_path` instead of accumulating every page in one response.
 
-OCR responses expose readable `markdown`/`sed` fields extracted from the service `document` section. The default `text` is the readable result; pass `include_raw=true` when coordinate and layout details from the full decoded JSON are needed, then read `raw`.
+OCR responses expose readable `markdown`/`sed` fields extracted from the service `document` section. The default `text` is the readable result; pass `include_raw=true` when coordinate and layout details from the full decoded JSON are needed, then read `raw`. There is no client-side PDF page-count hard limit; selections over 1,000 pages require `confirm_large_pdf=true` because each page creates a separate OCR request. A single PDF file may be at most 500 MiB.
 
 Set `annotate=true` to draw OCR layout element types over the source image. Select types with comma-separated `annotation_types` or use `all`. A single page returns an inline PNG (up to 8 MiB) plus `annotation_path`; multi-page calls return `annotation_paths` without embedding every image.
 

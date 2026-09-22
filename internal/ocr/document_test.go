@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,5 +95,12 @@ func TestBoundedPageDPILimitsTemporaryBitmap(t *testing.T) {
 
 	if _, err := boundedPageDPI(fixedPageSizer{width: 10000, height: 10000}, references.FPDF_DOCUMENT(""), 0, 150); err == nil {
 		t.Fatal("expected oversized page error at minimum DPI")
+	}
+}
+
+func TestLargePDFConfirmationError(t *testing.T) {
+	err := (&LargePDFConfirmationError{Pages: 1001}).Error()
+	if !strings.Contains(err, "confirm_large_pdf") || !strings.Contains(err, "--confirm-large-pdf") {
+		t.Fatalf("confirmation error = %q", err)
 	}
 }

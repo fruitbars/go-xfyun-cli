@@ -100,7 +100,8 @@ type OCRInput struct {
 	InputPath       string   `json:"input_path" jsonschema:"Path to a local image or PDF. Unsupported raster formats are converted automatically."`
 	OutputPath      string   `json:"output_path,omitempty" jsonschema:"Optional NDJSON destination. Multi-page results use a temporary NDJSON file when omitted."`
 	Force           bool     `json:"force,omitempty" jsonschema:"Allow replacement of an existing output_path after all pages succeed."`
-	Pages           string   `json:"pages,omitempty" jsonschema:"PDF page selection such as 1-3,5. Default: all pages when the PDF has at most 200 pages; larger PDFs require ranges of at most 200 selected pages per call."`
+	Pages           string   `json:"pages,omitempty" jsonschema:"PDF page selection such as 1-3,5. Default: all pages. Use ranges for incremental processing or retrying a subset of a large PDF."`
+	ConfirmLargePDF bool     `json:"confirm_large_pdf,omitempty" jsonschema:"Confirm processing a PDF selection over 1000 pages. The tool asks for this explicit confirmation before issuing one OCR request per page."`
 	PDFDPI          int      `json:"pdf_dpi,omitempty" jsonschema:"PDF page rendering resolution from 72 to 300 DPI. Default: 150."`
 	ResultFormat    string   `json:"result_format,omitempty" jsonschema:"json; json,markdown; json,sed; or json,markdown,sed. Default: json,markdown."`
 	IncludeRaw      bool     `json:"include_raw,omitempty" jsonschema:"Include the full decoded OCR JSON with coordinates and layout details. Default: false."`
@@ -265,6 +266,9 @@ func addOCRTool(server *mcp.Server, service *Service) {
 			return nil
 		}
 		err := ocr.StreamPath(ctx, input.InputPath, input.Pages, input.PDFDPI, func(documentImage ocr.DocumentImage) error {
+			if documentImage.PageCount > ocr.LargePDFConfirmPages && !input.ConfirmLargePDF {
+				return &ocr.LargePDFConfirmationError{Pages: documentImage.PageCount}
+			}
 			if err := openPageSink(documentImage.PageCount); err != nil {
 				return err
 			}

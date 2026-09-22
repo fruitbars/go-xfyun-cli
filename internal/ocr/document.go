@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	MaxPDFBytes      int64 = 500 * 1024 * 1024
-	MaxDocumentPages       = 200
-	DefaultPDFDPI          = 150
+	MaxPDFBytes          int64 = 500 * 1024 * 1024
+	DefaultPDFDPI              = 150
+	LargePDFConfirmPages       = 1000
 	// MaxRenderedPagePixels limits the temporary PDFium bitmap to roughly
 	// 160 MiB at four bytes per pixel. Oversized pages are rendered at a lower
 	// DPI (never below 72) so one unusual page cannot exhaust process memory.
@@ -30,6 +30,16 @@ const (
 	// instead of wazero's default 4 GiB maximum.
 	pdfWASMMemoryLimitPages uint32 = 8192
 )
+
+// ErrLargePDFConfirmation is returned before the first OCR API request when
+// a selected PDF page range exceeds the interactive confirmation threshold.
+type LargePDFConfirmationError struct {
+	Pages int
+}
+
+func (e *LargePDFConfirmationError) Error() string {
+	return fmt.Sprintf("PDF selection contains %d pages; this exceeds the %d-page confirmation threshold and would issue one OCR request per page; set confirm_large_pdf=true or --confirm-large-pdf after user confirmation", e.Pages, LargePDFConfirmPages)
+}
 
 // PDF rendering is intentionally serialized process-wide. MCP hosts may issue
 // concurrent tool calls, and one PDFium runtime is already capable of using a
@@ -134,9 +144,6 @@ func streamPDF(ctx context.Context, reader io.ReadSeeker, size int64, selection 
 	pages, err := parsePageSelection(selection, count.PageCount)
 	if err != nil {
 		return err
-	}
-	if len(pages) > MaxDocumentPages {
-		return fmt.Errorf("PDF selection contains %d pages; select at most %d per request", len(pages), MaxDocumentPages)
 	}
 	for _, page := range pages {
 		if err := ctx.Err(); err != nil {

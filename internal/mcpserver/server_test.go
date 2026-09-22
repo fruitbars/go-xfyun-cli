@@ -96,6 +96,9 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 					t.Fatalf("OCR schema does not expose %s: %s", field, schema)
 				}
 			}
+			if !strings.Contains(string(schema), `"confirm_large_pdf"`) {
+				t.Fatalf("OCR schema does not expose large-PDF confirmation: %s", schema)
+			}
 		}
 	}
 

@@ -1,6 +1,6 @@
 {
   "name": "@fruitbars/xfyun-ai-mcp-darwin-arm64",
-  "version": "0.7.6",
+  "version": "0.7.7",
   "description": "XFYun AI MCP native binary for macOS arm64",
   "repository": {"type": "git", "url": "git+https://github.com/fruitbars/go-xfyun-cli.git"},
   "os": ["darwin"],
