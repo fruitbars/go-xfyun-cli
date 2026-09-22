@@ -1,6 +1,6 @@
 {
   "name": "@fruitbars/xfyun-ai-mcp-linux-x64",
-  "version": "0.7.7",
+  "version": "0.8.0",
   "description": "XFYun AI MCP native binary for Linux x64",
   "repository": {"type": "git", "url": "git+https://github.com/fruitbars/go-xfyun-cli.git"},
   "os": ["linux"],

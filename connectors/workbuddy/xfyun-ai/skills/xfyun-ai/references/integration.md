@@ -3,7 +3,7 @@
 连接器要求 WorkBuddy 5.0.0 或更高版本，并通过 Node.js 20 运行：
 
 ```bash
-npx -y @fruitbars/xfyun-ai-mcp@0.7.7
+npx -y @fruitbars/xfyun-ai-mcp@0.8.0
 ```
 
 npm 启动器会按当前系统选择 Windows、macOS 或 Linux 的 x64/arm64 原生包。只有在主包和六个平台包发布到 npm 后，市场安装用户才能直接运行。
