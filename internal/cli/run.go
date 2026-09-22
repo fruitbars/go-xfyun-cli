@@ -165,6 +165,7 @@ func runOCR(ctx context.Context, args []string, stdin io.Reader, stdout, stderr 
 	encoding := fs.String("encoding", "", "optional input encoding override")
 	pages := fs.String("pages", "", "PDF page selection such as 1-3,5; default all")
 	confirmLargePDF := fs.Bool("confirm-large-pdf", false, "confirm OCR processing when the selected PDF pages exceed 1000")
+	dryRun := fs.Bool("dry-run", false, "inspect local input and selected pages without calling OCR")
 	pdfDPI := fs.Int("pdf-dpi", ocr.DefaultPDFDPI, "PDF rendering resolution from 72 to 300 DPI")
 	resultFormat := fs.String("result-format", "json,markdown", "API result formats")
 	resultOption := fs.String("result-option", "normal", "normal, normal,char, or no_line_position variants")
@@ -189,15 +190,30 @@ func runOCR(ctx context.Context, args []string, stdin io.Reader, stdout, stderr 
 	if *input == "" {
 		return fmt.Errorf("--input is required")
 	}
-	creds.FromEnv()
-	if err := creds.ValidateSigned(); err != nil {
-		return err
-	}
 	inputPath, cleanup, err := prepareOCRInput(*input, stdin)
 	if err != nil {
 		return err
 	}
 	defer cleanup()
+	if *dryRun {
+		info, err := ocr.InspectPath(ctx, inputPath, *pages, *pdfDPI)
+		if err != nil {
+			return err
+		}
+		return writeJSON(stdout, struct {
+			IsPDF                bool  `json:"is_pdf"`
+			SourceBytes          int64 `json:"source_bytes"`
+			PageCount            int   `json:"page_count"`
+			SelectedPages        []int `json:"selected_pages,omitempty"`
+			RequiresConfirmation bool  `json:"requires_confirmation"`
+			ConfirmationPages    int   `json:"confirmation_threshold_pages"`
+			PDFDPI               int   `json:"pdf_dpi,omitempty"`
+		}{IsPDF: info.IsPDF, SourceBytes: info.SourceBytes, PageCount: info.PageCount, SelectedPages: info.SelectedPages, RequiresConfirmation: info.PageCount > ocr.LargePDFConfirmPages, ConfirmationPages: ocr.LargePDFConfirmPages, PDFDPI: info.DPI})
+	}
+	creds.FromEnv()
+	if err := creds.ValidateSigned(); err != nil {
+		return err
+	}
 	client := ocr.Client{Credentials: creds}
 	type pageResult struct {
 		Type       string        `json:"type"`

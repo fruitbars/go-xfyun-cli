@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"context"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,6 +12,31 @@ import (
 
 	"github.com/fruitbars/go-xfyun-cli/internal/ifasr"
 )
+
+func TestOCRDryRunDoesNotRequireCredentials(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "page.png")
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(file, image.NewRGBA(image.Rect(0, 0, 8, 8))); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XFYUN_APP_ID", "")
+	t.Setenv("XFYUN_API_KEY", "")
+	t.Setenv("XFYUN_API_SECRET", "")
+	var stdout, stderr bytes.Buffer
+	if err := Run(context.Background(), []string{"ocr", "--input", path, "--dry-run"}, bytes.NewReader(nil), &stdout, &stderr); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), `"page_count": 1`) || strings.Contains(stdout.String(), "missing XFYUN") {
+		t.Fatalf("dry-run output = %s, stderr = %s", stdout.String(), stderr.String())
+	}
+}
 
 func TestTTSFailurePreservesForcedOutput(t *testing.T) {
 	t.Setenv("XFYUN_APP_ID", "test")

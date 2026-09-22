@@ -2,6 +2,8 @@
 
 工具返回可复现、可提交工单的非敏感诊断信息。排障时应保留 SID 或订单号、实际参数、错误码和发生时间，但不要复制环境变量值、签名或包含临时令牌的完整 URL。
 
+讯飞 API 错误消息会附带稳定的 `category` 和 `retryable` 元数据。`authentication`、`permission`、`quota` 和 `invalid_request` 不应自动重试；只有被标为 `upstream` 且 `retryable=true` 的临时服务故障才适合由 Agent 按退避策略重试。工具不会对鉴权、额度、权限或参数错误自动重试。
+
 ## 启动前自检
 
 CLI 安装后可以运行：
@@ -47,6 +49,8 @@ MCP 进程只继承宿主启动时的环境变量。`doctor` 显示凭证就绪�
 - OCR 的 `diagnostics` 包含结果格式、版面选项、EXIF/透明度/旋转配置、PDF DPI、标注类型、输入文件信息、SID、页数和输出路径。
 - `elapsed_ms` 是客户端从开始处理到生成结果的墙钟耗时。OCR 页级值为任务开始后的累计耗时。
 - `retries` 当前为 `0`；鉴权、额度、权限和参数错误不会自动重试。
+
+文件类工具另外返回统一的 `artifacts[]`。`path` 是本地绝对路径，`kind` 区分 `ocr_result`、`ocr_annotation`、`tts_audio`、`media_output` 和 IFASR 的 `ifasr_task` 续跑文件，并带有 MIME、字节数和 SHA-256。Agent 应优先使用这些结构化字段传递文件，不要从 `diagnostics.output` 的展示字符串反推路径。
 
 ## IFASR
 

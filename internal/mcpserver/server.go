@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -23,6 +24,70 @@ import (
 
 type Service struct {
 	credentials config.Credentials
+}
+
+// Artifact is a stable, local reference that an Agent can pass to its next
+// step without scraping human-oriented text. Hashes are computed only for
+// files produced by the tool and never include credentials or request data.
+type Artifact struct {
+	Path   string `json:"path"`
+	Kind   string `json:"kind"`
+	MIME   string `json:"mime,omitempty"`
+	Bytes  int64  `json:"bytes"`
+	SHA256 string `json:"sha256,omitempty"`
+}
+
+func artifactForPath(path, kind string) (Artifact, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return Artifact{}, fmt.Errorf("resolve artifact %q: %w", path, err)
+	}
+	info, err := os.Stat(absolute)
+	if err != nil {
+		return Artifact{}, fmt.Errorf("stat artifact %q: %w", absolute, err)
+	}
+	file, err := os.Open(absolute)
+	if err != nil {
+		return Artifact{}, fmt.Errorf("open artifact %q: %w", absolute, err)
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return Artifact{}, fmt.Errorf("hash artifact %q: %w", absolute, err)
+	}
+	return Artifact{Path: absolute, Kind: kind, MIME: mimeForPath(absolute), Bytes: info.Size(), SHA256: fmt.Sprintf("%x", hash.Sum(nil))}, nil
+}
+
+func mimeForPath(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".json", ".ndjson":
+		return "application/json"
+	case ".md":
+		return "text/markdown"
+	case ".txt":
+		return "text/plain"
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".wav":
+		return "audio/wav"
+	case ".pcm":
+		return "audio/L16"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+func appendArtifact(artifacts *[]Artifact, artifact Artifact) {
+	for _, existing := range *artifacts {
+		if existing.Path == artifact.Path {
+			return
+		}
+	}
+	*artifacts = append(*artifacts, artifact)
 }
 
 // RequestDiagnostics makes every MCP result self-describing without exposing
@@ -84,7 +149,7 @@ func New(credentials config.Credentials) *mcp.Server {
 		Description: "OCR, speech synthesis, and speech transcription through XFYun large-model APIs",
 		Version:     version.Current,
 	}, &mcp.ServerOptions{
-		Instructions: "XFYun media tools: use xfyun_ocr for document images, xfyun_tts for super-smart large-model speech synthesis, xfyun_rtasr for live-style PCM/Opus/Speex streams, and xfyun_ifasr_submit plus xfyun_ifasr_result for completed recordings. IFASR defaults to the Spark large-model variant; set variant=standard for the standard recording transcription API. Standard orders need only order_id; large-model orders need order_id plus signature_random. Use xfyun_media to inspect or convert local audio channels, sample rates, and bitrates. Use OCR annotate=true only when the user asks for layout types drawn on the source. Multi-page OCR returns an NDJSON output_path; consume it incrementally instead of loading the entire file. Long OCR, TTS, and IFASR work reports MCP progress when the caller supplies a progress token; preserve IFASR identifiers and poll with wait=false when the host has short timeouts. Credentials come from XFYUN_APP_ID, XFYUN_API_KEY, and XFYUN_API_SECRET. File paths are local to this server process. Never overwrite OCR, TTS, or media output unless the user authorized force=true.",
+		Instructions: "XFYun media tools: use xfyun_ocr for document images, xfyun_tts for super-smart large-model speech synthesis, xfyun_rtasr for live-style PCM/Opus/Speex streams, and xfyun_ifasr_submit plus xfyun_ifasr_result for completed recordings. IFASR defaults to the Spark large-model variant; set variant=standard for the standard recording transcription API. Standard orders need only order_id; large-model orders need order_id plus signature_random. Use xfyun_media to inspect or convert local audio channels, sample rates, and bitrates. For an unfamiliar or very large PDF, call xfyun_ocr with dry_run=true first; it reads local metadata only and returns a preflight estimate without OCR requests. Use OCR annotate=true only when the user asks for layout types drawn on the source. Multi-page OCR returns an NDJSON output_path; consume it incrementally instead of loading the entire file. File-producing tools return artifacts[] with path, MIME, size, and SHA-256 for downstream steps. Long OCR, TTS, and IFASR work reports MCP progress when the caller supplies a progress token; preserve IFASR identifiers and poll with wait=false when the host has short timeouts. Credentials come from XFYUN_APP_ID, XFYUN_API_KEY, and XFYUN_API_SECRET. File paths are local to this server process. Never overwrite OCR, TTS, or media output unless the user authorized force=true.",
 	})
 
 	addOCRTool(server, service)
@@ -98,6 +163,7 @@ func New(credentials config.Credentials) *mcp.Server {
 
 type OCRInput struct {
 	InputPath       string   `json:"input_path" jsonschema:"Path to a local image or PDF. Unsupported raster formats are converted automatically."`
+	DryRun          bool     `json:"dry_run,omitempty" jsonschema:"Inspect the local input and selected pages without calling the OCR API. Returns a preflight estimate."`
 	OutputPath      string   `json:"output_path,omitempty" jsonschema:"Optional NDJSON destination. Multi-page results use a temporary NDJSON file when omitted."`
 	Force           bool     `json:"force,omitempty" jsonschema:"Allow replacement of an existing output_path after all pages succeed."`
 	Pages           string   `json:"pages,omitempty" jsonschema:"PDF page selection such as 1-3,5. Default: all pages. Use ranges for incremental processing or retrying a subset of a large PDF."`
@@ -118,6 +184,7 @@ type OCRInput struct {
 }
 
 type OCROutput struct {
+	Preflight          *OCRPreflight        `json:"preflight,omitempty"`
 	Text               string               `json:"text,omitempty"`
 	Markdown           string               `json:"markdown,omitempty"`
 	SED                []ocr.SEDElement     `json:"sed,omitempty"`
@@ -134,6 +201,17 @@ type OCROutput struct {
 	OutputFormat       string               `json:"output_format,omitempty"`
 	AutoGenerated      bool                 `json:"auto_generated,omitempty"`
 	Diagnostics        []RequestDiagnostics `json:"diagnostics,omitempty"`
+	Artifacts          []Artifact           `json:"artifacts,omitempty"`
+}
+
+type OCRPreflight struct {
+	IsPDF                bool  `json:"is_pdf"`
+	SourceBytes          int64 `json:"source_bytes"`
+	PageCount            int   `json:"page_count"`
+	SelectedPages        []int `json:"selected_pages,omitempty"`
+	RequiresConfirmation bool  `json:"requires_confirmation"`
+	ConfirmationPages    int   `json:"confirmation_threshold_pages"`
+	PDFDPI               int   `json:"pdf_dpi,omitempty"`
 }
 
 type OCRPageOutput struct {
@@ -217,6 +295,21 @@ func addOCRTool(server *mcp.Server, service *Service) {
 			output.AnnotationTypes = annotationTypes
 			ocrDiagnostics.Parameters["annotationTypes"] = strings.Join(annotationTypes, ",")
 		}
+		preflight, err := ocr.InspectPath(ctx, input.InputPath, input.Pages, pdfDPI)
+		if err != nil {
+			return nil, OCROutput{}, err
+		}
+		if input.DryRun {
+			return nil, OCROutput{Preflight: &OCRPreflight{
+				IsPDF: preflight.IsPDF, SourceBytes: preflight.SourceBytes,
+				PageCount: preflight.PageCount, SelectedPages: preflight.SelectedPages,
+				RequiresConfirmation: preflight.PageCount > ocr.LargePDFConfirmPages,
+				ConfirmationPages:    ocr.LargePDFConfirmPages, PDFDPI: preflight.DPI,
+			}}, nil
+		}
+		if preflight.PageCount > ocr.LargePDFConfirmPages && !input.ConfirmLargePDF {
+			return nil, OCROutput{}, &ocr.LargePDFConfirmationError{Pages: preflight.PageCount}
+		}
 		client := ocr.Client{Credentials: service.credentials}
 		var outputFile *os.File
 		var outputEncoder *json.Encoder
@@ -265,10 +358,7 @@ func addOCRTool(server *mcp.Server, service *Service) {
 			outputEncoder = json.NewEncoder(outputFile)
 			return nil
 		}
-		err := ocr.StreamPath(ctx, input.InputPath, input.Pages, input.PDFDPI, func(documentImage ocr.DocumentImage) error {
-			if documentImage.PageCount > ocr.LargePDFConfirmPages && !input.ConfirmLargePDF {
-				return &ocr.LargePDFConfirmationError{Pages: documentImage.PageCount}
-			}
+		err = ocr.StreamPath(ctx, input.InputPath, input.Pages, pdfDPI, func(documentImage ocr.DocumentImage) error {
 			if err := openPageSink(documentImage.PageCount); err != nil {
 				return err
 			}
@@ -328,6 +418,9 @@ func addOCRTool(server *mcp.Server, service *Service) {
 				} else {
 					output.AnnotationPaths = append(output.AnnotationPaths, annotationPath)
 				}
+				if artifact, artifactErr := artifactForPath(annotationPath, "ocr_annotation"); artifactErr == nil {
+					appendArtifact(&output.Artifacts, artifact)
+				}
 				output.AnnotationCount += count
 			}
 			output.PageCount++
@@ -379,6 +472,11 @@ func addOCRTool(server *mcp.Server, service *Service) {
 				}
 			}
 			committed = true
+		}
+		if output.OutputPath != "" {
+			if artifact, artifactErr := artifactForPath(output.OutputPath, "ocr_result"); artifactErr == nil {
+				appendArtifact(&output.Artifacts, artifact)
+			}
 		}
 		if len(singleAnnotation) > 0 {
 			return &mcp.CallToolResult{Content: []mcp.Content{
@@ -481,6 +579,7 @@ type TTSOutput struct {
 	Bytes         int64               `json:"bytes"`
 	Pronunciation string              `json:"pronunciation,omitempty"`
 	Diagnostics   *RequestDiagnostics `json:"diagnostics,omitempty"`
+	Artifacts     []Artifact          `json:"artifacts,omitempty"`
 }
 
 func addTTSTool(server *mcp.Server, service *Service) {
@@ -580,9 +679,13 @@ func addTTSTool(server *mcp.Server, service *Service) {
 		}
 		diagnostics.Output = map[string]string{"path": absolutePath, "bytes": fmt.Sprintf("%d", metadata.Bytes)}
 		diagnostics.finish(started)
+		artifacts := []Artifact{}
+		if artifact, artifactErr := artifactForPath(absolutePath, "tts_audio"); artifactErr == nil {
+			artifacts = append(artifacts, artifact)
+		}
 		return nil, TTSOutput{
 			OutputPath: absolutePath, SID: metadata.SID, SIDs: metadata.SIDs, Segments: metadata.Segments, Encoding: metadata.Encoding,
-			SampleRate: metadata.SampleRate, Bytes: metadata.Bytes, Pronunciation: metadata.Pronunciation, Diagnostics: &diagnostics,
+			SampleRate: metadata.SampleRate, Bytes: metadata.Bytes, Pronunciation: metadata.Pronunciation, Diagnostics: &diagnostics, Artifacts: artifacts,
 		}, nil
 	})
 }
@@ -608,6 +711,7 @@ type RTASROutput struct {
 	SID         string              `json:"sid,omitempty"`
 	Segments    int                 `json:"segments"`
 	Diagnostics *RequestDiagnostics `json:"diagnostics,omitempty"`
+	Artifacts   []Artifact          `json:"artifacts,omitempty"`
 }
 
 func addRTASRTool(server *mcp.Server, service *Service) {
@@ -708,6 +812,7 @@ type IFASRSubmitOutput struct {
 	TaskEstimateTime int64                `json:"task_estimate_time_ms,omitempty"`
 	Split            bool                 `json:"split"`
 	Requests         []ifasr.RequestTrace `json:"requests,omitempty"`
+	Artifacts        []Artifact           `json:"artifacts,omitempty"`
 	Parts            []IFASRSubmitPart    `json:"parts,omitempty"`
 	TaskFilePath     string               `json:"task_file_path,omitempty"`
 }
@@ -770,10 +875,16 @@ func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 				}
 			}
 			notifyProgress(ctx, req, 1, 1, "IFASR remote recording submitted")
-			return nil, IFASRSubmitOutput{
+			output := IFASRSubmitOutput{
 				OrderID: result.OrderID, SignatureRandom: result.SignatureRand,
 				TaskEstimateTime: result.Response.Content.TaskEstimateTime, Requests: result.Requests, TaskFilePath: input.TaskFilePath,
-			}, nil
+			}
+			if input.TaskFilePath != "" {
+				if artifact, artifactErr := artifactForPath(input.TaskFilePath, "ifasr_task"); artifactErr == nil {
+					output.Artifacts = append(output.Artifacts, artifact)
+				}
+			}
+			return nil, output, nil
 		}
 		batch, err := client.TranscribeFile(ctx, input.InputPath, opts)
 		if err != nil {
@@ -801,6 +912,9 @@ func addIFASRSubmitTool(server *mcp.Server, service *Service) {
 				return nil, IFASRSubmitOutput{}, err
 			}
 			output.TaskFilePath = input.TaskFilePath
+			if artifact, artifactErr := artifactForPath(input.TaskFilePath, "ifasr_task"); artifactErr == nil {
+				appendArtifact(&output.Artifacts, artifact)
+			}
 		}
 		return nil, output, nil
 	})
@@ -842,6 +956,7 @@ type IFASRResultOutput struct {
 	ExpireTime          int64                  `json:"expire_time,omitempty"`
 	TaskEstimateTime    int64                  `json:"task_estimate_time_ms,omitempty"`
 	Requests            []ifasr.RequestTrace   `json:"requests,omitempty"`
+	Artifacts           []Artifact             `json:"artifacts,omitempty"`
 	Split               bool                   `json:"split"`
 	Parts               []IFASRPartResult      `json:"parts,omitempty"`
 	TaskFilePath        string                 `json:"task_file_path,omitempty"`
@@ -1185,6 +1300,7 @@ type MediaOutput struct {
 	Operation  string     `json:"operation"`
 	OutputPath string     `json:"output_path,omitempty"`
 	Info       media.Info `json:"info"`
+	Artifacts  []Artifact `json:"artifacts,omitempty"`
 }
 
 func addMediaTool(server *mcp.Server, service *Service) {
@@ -1241,7 +1357,11 @@ func addMediaTool(server *mcp.Server, service *Service) {
 		if err != nil {
 			return nil, MediaOutput{}, err
 		}
-		return nil, MediaOutput{Operation: "convert", OutputPath: absolute, Info: info}, nil
+		artifacts := []Artifact{}
+		if artifact, artifactErr := artifactForPath(absolute, "media_output"); artifactErr == nil {
+			artifacts = append(artifacts, artifact)
+		}
+		return nil, MediaOutput{Operation: "convert", OutputPath: absolute, Info: info, Artifacts: artifacts}, nil
 	})
 }
 

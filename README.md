@@ -24,7 +24,7 @@
 
 在 Codex、Claude Code 或 WorkBuddy 中，用户可以直接提出“把这个 PDF 做 OCR”“把这段双声道客服录音按双方整理并生成字幕”“把这篇文章合成为 MP3”等自然语言需求，由 Agent 选择对应工具并保留 SID、订单号和实际参数用于排障。
 
-更多批量文档、会议纪要、长任务恢复和选型边界见 [功能与使用场景](docs/scenarios.md)。
+更多批量文档、会议纪要、长任务恢复和选型边界见 [功能与使用场景](docs/scenarios.md)。MCP OCR 支持先用 `dry_run=true` 做本地页数/大小预检；成功的文件类结果带有 `artifacts[]`，包含路径、MIME、大小和 SHA-256，适合 Agent 继续编排。
 
 安装后可先运行自检：
 
@@ -128,12 +128,14 @@ xfyun ocr --input report.pdf --pages 1-5 --pdf-dpi 150
 
 接口原生支持 `jpg/jpeg/png/bmp`；GIF、WebP、TIFF 等可解码位图会在纯 Go 内自动转为 JPEG/PNG。源图片最大 32 MiB；超过上传阈值时自动压缩/缩放，使实际图像载荷不超过 4 MiB、base64 不超过 10 MiB。需要透明通道时保留 PNG，否则优先转为高质量 JPEG。
 
-PDF 使用内嵌的 PDFium WebAssembly（无 CGO、无系统依赖）按页栅格化，文本型、矢量型和扫描型 PDF 都支持；默认 150 DPI，可用 `--pdf-dpi 72..300` 调整。页面严格逐页渲染、压缩、OCR、输出结果和释放，页图与识别结果都不会在内存中整份堆积；多页 CLI 结果是一页一行的 NDJSON，可边运行边消费。单页仍保持原来的直接输出。临时渲染位图限制为 4000 万像素，超大页面会自动降低 DPI（最低 72）；PDFium WASM 内存硬上限为 512 MiB，同一进程内的 PDF 渲染会串行排队，避免并发文档叠加峰值。单个 PDF 文件最大 500 MiB，页数不设客户端硬上限；选中超过 1000 页时，MCP 需 `confirm_large_pdf=true`、CLI 需 `--confirm-large-pdf` 才会开始逐页请求。`--pages 1-3,5` 可限制页码，适合超大文件分批或只处理指定页面。高级参数还包括：
+PDF 使用内嵌的 PDFium WebAssembly（无 CGO、无系统依赖）按页栅格化，文本型、矢量型和扫描型 PDF 都支持；默认 150 DPI，可用 `--pdf-dpi 72..300` 调整。页面严格逐页渲染、压缩、OCR、输出结果和释放，页图与识别结果都不会在内存中整份堆积；多页 CLI 结果是一页一行的 NDJSON，可边运行边消费。单页仍保持原来的直接输出。临时渲染位图限制为 4000 万像素，超大页面会自动降低 DPI（最低 72）；PDFium WASM 内存硬上限为 512 MiB，同一进程内的 PDF 渲染会串行排队，避免并发文档叠加峰值。单个 PDF 文件最大 500 MiB，页数不设客户端硬上限；选中超过 1000 页时，MCP 需 `confirm_large_pdf=true`、CLI 需 `--confirm-large-pdf` 才会开始逐页请求。MCP Agent 可先传 `dry_run=true`，只读取文件并返回页数、选中范围和是否需要确认；不会调用 OCR 或消耗额度。`--pages 1-3,5` 可限制页码，适合超大文件分批或只处理指定页面。高级参数还包括：
 
 - `--markdown-elements`、`--sed-elements`
 - `--rotation-min-angle 0..180`
 - `--exif 0|1`、`--alpha 0|1`
 - `--raw` 输出完整 API 响应
+
+CLI 也支持 `--dry-run` 做无云预检；它输出 JSON 的页数、选中页码、文件大小和 1000 页确认状态，不需要凭证。
 
 从 stdin 读取时必须指定 `--encoding`。
 

@@ -9,7 +9,7 @@ Use the `xfyun-ai` MCP tools when available. Fall back to the `xfyun` CLI only w
 
 ## Choose the capability
 
-- Use `xfyun_ocr` for a local document image or PDF. It converts decodable raster formats and streams the full PDF pipeline one page at a time. A multi-page call returns an NDJSON `output_path`; read it incrementally and do not load the entire file into context.
+- Use `xfyun_ocr` for a local document image or PDF. It converts decodable raster formats and streams the full PDF pipeline one page at a time. For a long or unfamiliar PDF, call it first with `dry_run=true`; this is cloud-free and returns page count, selected pages, file size, and whether `confirm_large_pdf=true` will be required. A multi-page call returns an NDJSON `output_path`; read it incrementally and do not load the entire file into context.
 - Use `xfyun_tts` for speech synthesis. Require an explicit output path. Set `force=true` only when the user clearly authorized replacing that exact file.
 - Use `xfyun_rtasr` for PCM, Opus, or Speex input that should be streamed at real-time pacing. Its default is 16 kHz, 16-bit, mono PCM.
 - Use `xfyun_ifasr_submit` for ordinary or long recording files. It defaults to the Spark large-model variant; set `variant="standard"` for the standard recording transcription API. Preserve `order_id` and `signature_random` for a large-model response; standard responses need only `order_id`. When `split=true`, preserve every reference in `parts` and pass them as `orders` to `xfyun_ifasr_result`, which merges the transcripts.
@@ -31,6 +31,7 @@ Prefer IFASR over RTASR for completed `mp3`, `wav`, `flac`, `ogg`, or multi-hour
 - Treat IFASR status `4` as complete, `-1` as failed, and `0` or `3` as unfinished.
 - When IFASR smoothing or colloquial processing is enabled, `transcript` is processed text and `original_transcript` is the retained original when the service returns `lattice2`. Request `include_raw=true` for language-analysis details.
 - For TTS, report the resolved output path, encoding, byte count, and SID. Do not ingest generated binary audio into conversation context.
+- Prefer the returned `artifacts[]` for files produced by OCR, TTS, or media conversion. Each artifact includes path, MIME, byte count, and SHA-256 for downstream tools.
 - For OCR, TTS, and RTASR, preserve and report the returned redacted `diagnostics` when troubleshooting. For IFASR, preserve `requests[]`, `order_id`, and continuation identifiers instead.
 - On an API error, include the service, error code, message, and SID when present. Do not retry authentication, quota, permission, or invalid-input errors automatically.
 

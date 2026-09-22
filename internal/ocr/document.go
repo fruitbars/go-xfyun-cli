@@ -60,6 +60,60 @@ type DocumentImage struct {
 	Height    int
 }
 
+// DocumentInfo describes the local work that an OCR request would perform.
+// InspectPath never renders pages and never contacts the OCR service, so it is
+// suitable for an Agent preflight/dry-run step.
+type DocumentInfo struct {
+	IsPDF         bool
+	SourceBytes   int64
+	PageCount     int
+	SelectedPages []int
+	DPI           int
+}
+
+// InspectPath validates an OCR input and resolves its selected page set
+// without issuing an OCR request. PDFium is opened only long enough to read
+// the page count; page rendering is left to StreamPath.
+func InspectPath(ctx context.Context, path, pageSelection string, dpi int) (DocumentInfo, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return DocumentInfo{}, fmt.Errorf("open OCR input: %w", err)
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return DocumentInfo{}, fmt.Errorf("stat OCR input: %w", err)
+	}
+	header := make([]byte, 1024)
+	n, readErr := file.Read(header)
+	if readErr != nil && readErr != io.EOF {
+		return DocumentInfo{}, fmt.Errorf("read OCR input header: %w", readErr)
+	}
+	if isPDF(header[:n]) {
+		if info.Size() > MaxPDFBytes {
+			return DocumentInfo{}, fmt.Errorf("PDF is %d bytes; local limit is 500 MiB", info.Size())
+		}
+		if _, err := file.Seek(0, io.SeekStart); err != nil {
+			return DocumentInfo{}, fmt.Errorf("rewind OCR input: %w", err)
+		}
+		selected, err := inspectPDFPages(ctx, file, info.Size(), pageSelection)
+		if err != nil {
+			return DocumentInfo{}, err
+		}
+		if dpi == 0 {
+			dpi = DefaultPDFDPI
+		}
+		if dpi < 72 || dpi > 300 {
+			return DocumentInfo{}, fmt.Errorf("PDF DPI must be between 72 and 300")
+		}
+		return DocumentInfo{IsPDF: true, SourceBytes: info.Size(), PageCount: len(selected), SelectedPages: selected, DPI: dpi}, nil
+	}
+	if info.Size() > MaxSourceImageBytes {
+		return DocumentInfo{}, fmt.Errorf("source image is %d bytes; local compression limit is %d MiB", info.Size(), MaxSourceImageBytes/(1024*1024))
+	}
+	return DocumentInfo{SourceBytes: info.Size(), PageCount: 1, SelectedPages: []int{1}}, nil
+}
+
 // StreamPath reads a raster image once, or renders and emits one PDF page at a
 // time through the embedded pure-Go WebAssembly PDFium backend. No CGO or
 // system PDF renderer is required.
@@ -182,6 +236,40 @@ func streamPDF(ctx context.Context, reader io.ReadSeeker, size int64, selection 
 		// page is rendered, keeping page-image memory bounded.
 	}
 	return nil
+}
+
+func inspectPDFPages(ctx context.Context, reader io.ReadSeeker, size int64, selection string) ([]int, error) {
+	select {
+	case pdfRenderSlot <- struct{}{}:
+		defer func() { <-pdfRenderSlot }()
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	pool, err := webassembly.Init(webassembly.Config{
+		Context: ctx, MinIdle: 0, MaxIdle: 0, MaxTotal: 1, ReuseWorkers: false,
+		RuntimeConfig: wazero.NewRuntimeConfig().
+			WithMemoryLimitPages(pdfWASMMemoryLimitPages).
+			WithCloseOnContextDone(true),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("initialize pure-Go PDF renderer: %w", err)
+	}
+	defer pool.Close()
+	instance, err := pool.GetInstanceWithContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("start pure-Go PDF renderer: %w", err)
+	}
+	defer instance.Close()
+	document, err := instance.OpenDocument(&requests.OpenDocument{FileReader: reader, FileReaderSize: size})
+	if err != nil {
+		return nil, fmt.Errorf("open PDF: %w", err)
+	}
+	defer instance.FPDF_CloseDocument(&requests.FPDF_CloseDocument{Document: document.Document})
+	count, err := instance.FPDF_GetPageCount(&requests.FPDF_GetPageCount{Document: document.Document})
+	if err != nil {
+		return nil, fmt.Errorf("read PDF page count: %w", err)
+	}
+	return parsePageSelection(selection, count.PageCount)
 }
 
 type pageSizer interface {

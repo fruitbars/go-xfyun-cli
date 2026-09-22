@@ -79,8 +79,8 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(string(outputSchema), `"diagnostics"`) {
-				t.Fatalf("%s output schema does not expose diagnostics: %s", tool.Name, outputSchema)
+			if !strings.Contains(string(outputSchema), `"diagnostics"`) || !strings.Contains(string(outputSchema), `"artifacts"`) {
+				t.Fatalf("%s output schema does not expose diagnostics/artifacts: %s", tool.Name, outputSchema)
 			}
 		}
 		if tool.Name == "xfyun_media" {
@@ -91,13 +91,20 @@ func TestServerAdvertisesExpectedTools(t *testing.T) {
 			}
 		}
 		if tool.Name == "xfyun_ocr" {
-			for _, field := range []string{`"include_raw"`, `"annotate"`, `"annotation_types"`, `"annotation_output_path"`} {
+			outputSchema, err := json.Marshal(tool.OutputSchema)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, field := range []string{`"include_raw"`, `"annotate"`, `"annotation_types"`, `"annotation_output_path"`, `"dry_run"`} {
 				if !strings.Contains(string(schema), field) {
 					t.Fatalf("OCR schema does not expose %s: %s", field, schema)
 				}
 			}
 			if !strings.Contains(string(schema), `"confirm_large_pdf"`) {
 				t.Fatalf("OCR schema does not expose large-PDF confirmation: %s", schema)
+			}
+			if !strings.Contains(string(outputSchema), `"preflight"`) || !strings.Contains(string(outputSchema), `"artifacts"`) {
+				t.Fatalf("OCR output schema does not expose preflight/artifacts: %s", outputSchema)
 			}
 		}
 	}
@@ -158,6 +165,23 @@ func TestSaveOCRAnnotationAcceptsExistingDottedDirectory(t *testing.T) {
 	data, err = os.ReadFile(path)
 	if err != nil || string(data) != "new" {
 		t.Fatalf("forced annotation data = %q, err = %v", data, err)
+	}
+}
+
+func TestArtifactForPathReportsStableMetadata(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "result.txt")
+	if err := os.WriteFile(path, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	artifact, err := artifactForPath(path, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if artifact.Path != path || artifact.Kind != "test" || artifact.MIME != "text/plain" || artifact.Bytes != 5 {
+		t.Fatalf("artifact = %+v", artifact)
+	}
+	if artifact.SHA256 != "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824" {
+		t.Fatalf("sha256 = %q", artifact.SHA256)
 	}
 }
 

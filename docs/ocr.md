@@ -157,6 +157,14 @@ table_format=0,formula_format=0,watermark=0,page_header=0,page_footer=0,page_num
 
 ## 多页处理和资源限制
 
+### Agent 预检
+
+MCP 调用可以先设置 `dry_run=true`。工具只读取本地文件和 PDF 页数，不会上传图片、消耗 OCR 配额，也不会创建输出文件，返回 `preflight`。Agent 可以根据页数、文件大小和用户预算确认，再用同一组参数去掉 `dry_run` 执行。选中页数超过 1000 时，预检会将 `requires_confirmation` 置为 `true`；正式执行仍需用户明确同意并设置 `confirm_large_pdf=true`。1000 页只是客户端确认阈值，不是 PDF 或讯飞接口的页数上限。
+
+```json
+{"preflight":{"is_pdf":true,"source_bytes":1839201,"page_count":300,"requires_confirmation":false,"confirmation_threshold_pages":1000,"pdf_dpi":150}}
+```
+
 PDF 按以下顺序逐页执行：
 
 ```text
@@ -175,13 +183,16 @@ PDF 按以下顺序逐页执行：
 xfyun ocr --input page.png
 xfyun ocr --input report.pdf --pages 1-5,8 > report.ocr.ndjson
 xfyun ocr --input page.png --result-format json,markdown,sed --raw
+xfyun ocr --input report.pdf --pages 1-300 --dry-run
 ```
+
+`--dry-run` 只检查本地输入、文件大小和页码选择，不需要三项讯飞凭证，也不会产生 OCR 请求。
 
 运行 `xfyun ocr --help` 查看完整 CLI 参数。
 
 ## 诊断信息
 
-MCP 结果带有脱敏的 `diagnostics[]`，记录实际生效的结果格式、版面选项、输入文件大小、SID、页数、耗时和输出路径。多页 NDJSON 的每行还包含对应页面的诊断快照。诊断信息不包含凭证、签名或带令牌的 URL；完整规则见 [诊断信息与排障](diagnostics.md)。
+MCP 结果带有脱敏的 `diagnostics[]`，记录实际生效的结果格式、版面选项、输入文件大小、SID、页数、耗时和输出路径。多页 NDJSON 的每行还包含对应页面的诊断快照。成功的文件类结果还包含统一的 `artifacts[]`，提供本地路径、用途 `kind`、MIME、字节数和 SHA-256，便于 Agent 继续编排。诊断信息不包含凭证、签名或带令牌的 URL；完整规则见 [诊断信息与排障](diagnostics.md)。
 
 ## 常见问题
 

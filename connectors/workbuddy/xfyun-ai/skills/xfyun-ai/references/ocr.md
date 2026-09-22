@@ -2,6 +2,8 @@
 
 `xfyun_ocr` 可处理图片或 PDF。接口原生支持 `jpg/jpeg/png/bmp`；GIF、WebP、TIFF 等可解码格式会在纯 Go 内自动转成 JPEG/PNG。源图片最大 32 MiB，并会自动压缩/缩放，使上传图像不超过 4 MiB、base64 不超过 10 MiB。`alpha_option="1"` 时保留 PNG；否则超限图片可能转为高质量 JPEG。
 
+Agent 处理长文档前可先传 `dry_run=true` 做无云预检。它只读取本地文件，返回大小、页数、页码选择、DPI 和 `requires_confirmation`，不会调用 OCR 或创建输出文件。超过 1000 页仍需用户确认后再传 `confirm_large_pdf=true`。
+
 PDF 由内嵌 PDFium WebAssembly 渲染，无 CGO、无需系统安装渲染器，支持文本、矢量和扫描页。完整链路严格逐页流式执行：渲染一页、压缩、OCR、写出该页 NDJSON、释放页面后再继续。`pages="1-3,5"` 选择页码，`pdf_dpi` 为 72–300，默认 150；临时位图最多 4000 万像素，超大页面自动降 DPI（最低 72）。PDFium WASM 内存硬上限为 512 MiB，同一服务进程内的并发 PDF 会串行排队。客户端不按 PDF 页数硬拒绝，但超过 1000 页会先要求 `confirm_large_pdf=true`，确认后才逐页发起请求。单个 PDF 文件最大 500 MiB；大文档可用 `1-200`、`201-400` 等范围分批或重试。
 
 单图/单页直接返回 `text`。多页调用不会把所有文字装进 MCP 响应，而是每页写一条 NDJSON，并返回 `output_path`、`output_format="ndjson"` 和 `page_count`。用户要求固定位置时传 `output_path`；省略时工具创建临时文件并标记 `auto_generated=true`。只有用户允许覆盖时才传 `force=true`。WorkBuddy 若提供 progress token，还会逐页显示处理进度。
@@ -13,6 +15,7 @@ PDF 由内嵌 PDFium WebAssembly 渲染，无 CGO、无需系统安装渲染器�
 - 自动旋转阈值：`rotation_min_angle` 为 0–180，默认 5。
 - 使用拍摄方向信息：`exif_option="1"`；透明通道影响内容时：`alpha_option="1"`。
 - `markdown_options`、`sed_options` 使用逗号分隔的 `name=value`，按需求控制印章、二维码、条码、表格、公式、代码、水印、页眉、页脚、页码、图片等元素；`table=2` 表示有线表格处理。Markdown 默认使用 `table_format=0,formula_format=0`，输出 HTML 表格和 MathML 公式，以完整保留合并单元格及复杂结构；`table_format=1` 才输出 Markdown 表格，此时 `formula_format` 不生效。
+- 文件类工具成功结果会返回 `artifacts[]`，其中包含本地路径、用途、MIME、字节数和 SHA-256；后续 Agent 步骤应直接使用这些字段。
 
 标注支持完整的版面元素清单：`page`、`layout`、`region`、`page_header`、`title`、`paragraph`、`textline`、`table`、`cell`、`graph`、`list`、`item`、`formula`、`code`、`pseudocode`、`information_bar`、`seal`、`fingerprint`、`barcode`、`qrcode`、`watermark`、`page_footer`、`page_number`、`annotation`、`footnote`、`key`、`value`、`contents`。默认只选择常见语义类型，`all` 选择全部。
 

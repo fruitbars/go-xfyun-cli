@@ -46,7 +46,7 @@ For long jobs, pass `task_file_path` to `xfyun_ifasr_submit` to save a local mod
 
 Hosts that provide an MCP progress token receive progress notifications for TTS segments and IFASR part submission/polling. Hosts without progress support should use the returned output paths, `wait=false`, and saved order references to resume long work safely.
 
-OCR, TTS, and RTASR structured responses include redacted `diagnostics` with effective parameters, SID, elapsed time, segment/page counts, and output metadata. IFASR uses its asynchronous `requests[]` traces plus `order_id`/`signature_random` for continuation. Credentials, signatures, and URL query tokens are never included. See the repository's [diagnostics guide](https://github.com/fruitbars/go-xfyun-cli/blob/main/docs/diagnostics.md).
+OCR, TTS, and RTASR structured responses include redacted `diagnostics` with effective parameters, SID, elapsed time, segment/page counts, and output metadata. OCR also supports `dry_run=true` for a cloud-free page-count preflight. File-producing tools return `artifacts[]` with path, MIME, size, and SHA-256 for downstream Agent steps. IFASR uses its asynchronous `requests[]` traces plus `order_id`/`signature_random` for continuation. Credentials, signatures, and URL query tokens are never included. See the repository's [diagnostics guide](https://github.com/fruitbars/go-xfyun-cli/blob/main/docs/diagnostics.md).
 
 Set `include_raw=true` when speaker IDs, word timing, stereo `label.rl_track`, or other detailed fields are needed. `raw_result` contains `orderResult`; `raw_response` preserves the complete service response, including reserved future result fields.
 

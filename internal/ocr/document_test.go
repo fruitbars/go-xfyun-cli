@@ -1,8 +1,11 @@
 package ocr
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,5 +105,23 @@ func TestLargePDFConfirmationError(t *testing.T) {
 	err := (&LargePDFConfirmationError{Pages: 1001}).Error()
 	if !strings.Contains(err, "confirm_large_pdf") || !strings.Contains(err, "--confirm-large-pdf") {
 		t.Fatalf("confirmation error = %q", err)
+	}
+}
+
+func TestInspectPathImageIsCloudFreePreflight(t *testing.T) {
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 8, 8))); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "page.png")
+	if err := os.WriteFile(path, encoded.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	info, err := InspectPath(context.Background(), path, "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.IsPDF || info.PageCount != 1 || len(info.SelectedPages) != 1 || info.SelectedPages[0] != 1 || info.SourceBytes <= 0 {
+		t.Fatalf("unexpected preflight info: %+v", info)
 	}
 }
